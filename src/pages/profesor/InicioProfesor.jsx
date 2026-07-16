@@ -22,6 +22,20 @@ import { Bar, Line } from 'react-chartjs-2';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend);
 
+const getErrorMessage = (data) => {
+  if (!data) return null;
+  if (data.detail) {
+    if (Array.isArray(data.detail)) {
+      return data.detail.map(err => {
+        const campo = err.loc ? err.loc[err.loc.length - 1] : "";
+        return `${campo ? campo + ": " : ""}${err.msg}`;
+      }).join(", ");
+    }
+    return data.detail;
+  }
+  return data.message || data.error;
+};
+
 const InicioProfesor = () => {
   const [finanzas, setFinanzas] = useState({
     ingresoBruto: 0,
@@ -109,7 +123,8 @@ const InicioProfesor = () => {
         setMostrarModalPerfil(false);
       } else {
         const errData = await res.json();
-        Swal.fire('Error', errData.message || 'Error al guardar el perfil en el servidor', 'error');
+        const errorDetail = getErrorMessage(errData);
+        Swal.fire('Error', errorDetail || 'Error al guardar el perfil en el servidor', 'error');
       }
     } catch (err) {
       Swal.fire('Error', 'Problema de conexión con el servidor', 'error');

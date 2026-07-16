@@ -338,7 +338,8 @@ export default function TutoriasEstudiante() {
                           </div>
 
                           <div className="p-3 bg-light rounded-3 mb-3 text-center">
-                            <small className="text-uppercase fw-bold text-muted d-block mb-1">Cupos Disponibles</small>
+                            <span className="badge bg-indigo text-white mb-2 py-1 px-3 fs-6 rounded-pill" style={{ background: '#3F51B5' }}>Tema: {sesion.tema || "General"}</span>
+                            <small className="text-uppercase fw-bold text-muted d-block mb-1 mt-2">Cupos Disponibles</small>
                             <h4 className={`fw-bold mb-0 ${estaLleno ? 'text-danger' : quedanPocos ? 'text-warning' : 'text-success'}`}>
                               {sesion.inscritos} / {sesion.cuposMaximos}
                             </h4>
@@ -361,7 +362,7 @@ export default function TutoriasEstudiante() {
                               style={gradientStyle}
                               onClick={() => setSesionSeleccionada(sesion)}
                             >
-                              Reservar Cupo (S/ {((sesion.precioHora || 20) * (courseDurations[sesion.curso] || 1.5) * 1.15).toFixed(2)})
+                              Reservar Cupo (S/ {sesion.precioHora || 10})
                             </button>
                           )}
                         </div>

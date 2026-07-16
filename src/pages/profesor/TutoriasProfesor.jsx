@@ -10,6 +10,8 @@ const TutoriasProfesor = () => {
   // ESTADOS FORMULARIO CREAR SESIÓN
   const [misCursos, setMisCursos] = useState([]);
   const [cursoNuevaSesion, setCursoNuevaSesion] = useState('');
+  const [temaNuevaSesion, setTemaNuevaSesion] = useState('');
+  const [precioNuevaSesion, setPrecioNuevaSesion] = useState(10);
   const [fechaNuevaSesion, setFechaNuevaSesion] = useState('');
   const [horaNuevaSesion, setHoraNuevaSesion] = useState('');
   const [horaNuevaSesionFin, setHoraNuevaSesionFin] = useState('');
@@ -59,8 +61,16 @@ const TutoriasProfesor = () => {
       Swal.fire('Error', 'Debes seleccionar un curso válido antes de crear la sesión.', 'error');
       return;
     }
+    if (!temaNuevaSesion.trim()) {
+      Swal.fire('Error', 'Debes especificar el tema de la sesión.', 'error');
+      return;
+    }
     if (!fechaNuevaSesion || !horaNuevaSesion || !horaNuevaSesionFin) {
-      Swal.fire('Error', 'Completa todos los campos (Inicio y Fin).', 'error');
+      Swal.fire('Error', 'Completa todos los campos de fecha y hora.', 'error');
+      return;
+    }
+    if (precioNuevaSesion < 5) {
+      Swal.fire('Error', 'El precio mínimo debe ser de 5 soles.', 'error');
       return;
     }
 
@@ -115,13 +125,15 @@ const TutoriasProfesor = () => {
     const payload = {
       profesor_id: userSession?.id || 1,
       curso_id: parseInt(cursoNuevaSesion), // ahora es ID
+      tema: temaNuevaSesion,
+      precio: parseInt(precioNuevaSesion),
       fecha_hora_inicio: nuevaFechaHora.toISOString(),
       fecha_hora_fin: nuevaFechaHoraFin.toISOString(),
       cupos_maximos: 40,
       enlace_reunion: enlaceReunion || null
     };
 
-    fetch(`${import.meta.env.VITE_API_URL}/sessions`, {
+    fetch(`${import.meta.env.VITE_API_URL}/sesiones/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -129,7 +141,7 @@ const TutoriasProfesor = () => {
     .then(async (res) => {
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Error al crear la sesión en el backend');
+        throw new Error(data.detail || data.error || 'Error al crear la sesión en el backend');
       }
 
       // Fallback temporal para la UI hasta que el Backend cree el GET /api/sessions
@@ -139,18 +151,21 @@ const TutoriasProfesor = () => {
         profesorId: payload.profesor_id,
         profesorNombre: userName, 
         curso: nombreCursoReal,
+        tema: payload.tema,
         fecha: fechaNuevaSesion,
         hora: horaNuevaSesion,
         horaFin: horaNuevaSesionFin,
         duracion: duracionHoras,
         foto: "https://i.pravatar.cc/150?img=11",
-        precioHora: 20
+        precioHora: payload.precio
       });
 
       Swal.fire('¡Éxito!', 'La sesión ha sido publicada y está disponible para los alumnos.', 'success');
       setFechaNuevaSesion('');
       setHoraNuevaSesion('');
       setHoraNuevaSesionFin('');
+      setTemaNuevaSesion('');
+      setPrecioNuevaSesion(10);
       setEnlaceReunion('');
       cargarSesiones();
     })
@@ -358,6 +373,36 @@ const TutoriasProfesor = () => {
                             <option key={curso.id || curso} value={curso.id || curso}>{curso.nombre || curso}</option>
                           ))}
                         </select>
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <label className="form-label small fw-bold text-secondary">Tema Específico</label>
+                    <div className="input-group">
+                      <span className="input-group-text bg-light border-0 rounded-start-3 text-muted"><i className="bi bi-card-heading"></i></span>
+                      <input 
+                        type="text" 
+                        className="form-control bg-light border-0 shadow-none rounded-end-3"
+                        placeholder="Ej. Faraday, Óptica..."
+                        value={temaNuevaSesion}
+                        onChange={(e) => setTemaNuevaSesion(e.target.value)}
+                        required
+                        style={{ padding: '0.6rem 1rem' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <label className="form-label small fw-bold text-secondary">Precio por alumno (S/)</label>
+                    <div className="input-group">
+                      <span className="input-group-text bg-light border-0 rounded-start-3 text-muted"><i className="bi bi-currency-dollar"></i></span>
+                      <input 
+                        type="number" 
+                        className="form-control bg-light border-0 shadow-none rounded-end-3"
+                        value={precioNuevaSesion}
+                        onChange={(e) => setPrecioNuevaSesion(e.target.value)}
+                        min="5"
+                        required
+                        style={{ padding: '0.6rem 1rem' }}
+                      />
                     </div>
                   </div>
                   <div className="col-md-3">

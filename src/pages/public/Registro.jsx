@@ -37,6 +37,20 @@ const roleOptions = {
   }
 };
 
+const getErrorMessage = (data) => {
+  if (!data) return null;
+  if (data.detail) {
+    if (Array.isArray(data.detail)) {
+      return data.detail.map(err => {
+        const campo = err.loc ? err.loc[err.loc.length - 1] : "";
+        return `${campo ? campo + ": " : ""}${err.msg}`;
+      }).join(", ");
+    }
+    return data.detail;
+  }
+  return data.message || data.error;
+};
+
 export default function Registro() {
   const navigate = useNavigate();
   const [role, setRole] = useState("estudiante");
@@ -161,10 +175,11 @@ export default function Registro() {
           navigate("/login");
         });
       } else {
+        const errorDetail = getErrorMessage(data);
         Swal.fire({
           icon: "error",
           title: "Error al registrar",
-          text: data.error || "Ocurrió un error al crear la cuenta",
+          text: errorDetail || "Ocurrió un error al crear la cuenta",
           confirmButtonColor: currentRole.color
         });
       }

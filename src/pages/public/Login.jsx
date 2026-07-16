@@ -20,6 +20,20 @@ const demoCredentials = {
   estudiante: { email: "estu@profematch.com", pass: "estu123" },
 };
 
+const getErrorMessage = (data) => {
+  if (!data) return null;
+  if (data.detail) {
+    if (Array.isArray(data.detail)) {
+      return data.detail.map(err => {
+        const campo = err.loc ? err.loc[err.loc.length - 1] : "";
+        return `${campo ? campo + ": " : ""}${err.msg}`;
+      }).join(", ");
+    }
+    return data.detail;
+  }
+  return data.message || data.error;
+};
+
 export default function Login() {
   const navigate = useNavigate(); 
   const [email, setEmail] = useState("");
@@ -67,13 +81,32 @@ export default function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    console.log("BOTON CLICKEADO - Iniciando handleLogin");
+    console.log("Email:", email);
+    console.log("Password:", password);
+    console.log("URL de la API:", import.meta.env.VITE_API_URL);
     
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
-      });
+    if (password.length > 72) {
+  Swal.fire({
+    title: "Error",
+    text: "La contraseña supera el máximo de 72 caracteres.",
+    icon: "error",
+    confirmButtonColor: roleData[role].color,
+  });
+  return;
+}
+try {
+      console.log("A punto de hacer fetch a:", `${import.meta.env.VITE_API_URL}/auth/login`);
+       const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
+         method: "POST",
+         headers: {
+           "Content-Type": "application/json",
+           "Accept": "application/json"
+         },
+         mode: "cors",
+         credentials: "include",
+         body: JSON.stringify({ email, password })
+       });
 
       const data = await response.json();
 
@@ -111,17 +144,19 @@ export default function Login() {
         }).then(() => navigate(roleData[userRole]?.path || "/"));
 
       } else {
-        if (data.message === "pending_approval" || data.error === "pending_approval") {
+        const errorDetail = getErrorMessage(data);
+        
+        if (response.status === 403 || errorDetail === "Cuenta pendiente de aprobación" || errorDetail === "pending_approval") {
           Swal.fire({ 
             title: "Cuenta en revisión", 
-            text: "Tu cuenta ha sido creada, pero aún está pendiente de aprobación por un administrador.", 
+            text: errorDetail || "Tu cuenta ha sido creada, pero aún está pendiente de aprobación por un administrador.", 
             icon: "info", 
             confirmButtonColor: roleData[role].color 
           });
         } else {
           Swal.fire({ 
             title: "Error", 
-            text: data.message || data.error || "Credenciales incorrectas", 
+            text: errorDetail || "Credenciales incorrectas", 
             icon: "error", 
             confirmButtonColor: roleData[role].color 
           });
@@ -169,7 +204,7 @@ export default function Login() {
 
               <div className="input-group mb-4">
                 <span className="input-group-text bg-light border-0 rounded-start-4"><i className="bi bi-lock text-muted"></i></span>
-                <input type="password" className="form-control bg-light border-0 py-3 rounded-end-4" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <input type="password" className="form-control bg-light border-0 py-3 rounded-end-4" placeholder="Contraseña" maxLength={72} value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
 
               <div className="d-grid gap-3 mb-4">

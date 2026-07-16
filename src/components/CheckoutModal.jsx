@@ -11,8 +11,7 @@ export default function CheckoutModal({ sesion, onClose, onSuccess }) {
   const [errorValidacion, setErrorValidacion] = useState("");
 
   const duracion = courseDurations[sesion.curso] || 1.5;
-  const precioHora = sesion.precioHora || 20; // Default if not set
-  const tarifa = precioHora * duracion;
+  const tarifa = sesion.precioHora || 10;
   const comision = tarifa * 0.15;
   const total = tarifa + comision;
 
@@ -161,6 +160,7 @@ export default function CheckoutModal({ sesion, onClose, onSuccess }) {
                   <img src={sesion.foto} alt={sesion.profesorNombre} className="rounded-circle me-3" width="50" height="50" style={{ objectFit: 'cover' }} />
                   <div>
                     <h6 className="mb-0 fw-bold">{sesion.curso} con {sesion.profesorNombre}</h6>
+                    <small className="text-primary d-block fw-bold mb-1">Tema: {sesion.tema || "General"}</small>
                     <small className="text-muted d-block">
                       <i className="bi bi-calendar-event me-1"></i> {sesion.fecha} a las {sesion.hora}
                     </small>
@@ -174,7 +174,7 @@ export default function CheckoutModal({ sesion, onClose, onSuccess }) {
                   <div className="bg-light p-3 rounded-3 mb-4">
                     <h6 className="fw-bold mb-3">Detalle de Pago</h6>
                     <div className="d-flex justify-content-between mb-1 small">
-                      <span className="text-muted">Tarifa base (S/ {precioHora}/h x {duracion}h)</span>
+                      <span className="text-muted">Tarifa de sesión ({duracion}h)</span>
                       <span>S/ {tarifa.toFixed(2)}</span>
                     </div>
                     <div className="d-flex justify-content-between mb-2 small">

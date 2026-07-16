@@ -2,13 +2,24 @@ import { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import ProfesorCard from "../../components/ProfesorCard";
 
+const getErrorMessage = (data) => {
+  if (!data) return null;
+  if (data.detail) {
+    if (Array.isArray(data.detail)) {
+      return data.detail.map(err => {
+        const campo = err.loc ? err.loc[err.loc.length - 1] : "";
+        return `${campo ? campo + ": " : ""}${err.msg}`;
+      }).join(", ");
+    }
+    return data.detail;
+  }
+  return data.message || data.error;
+};
+
 export default function BuscarEstudiante() {
 
   const [busqueda, setBusqueda] = useState("");
   const [deptoSel, setDeptoSel] = useState("Todos");
-  const [filtrosAvanzados, setFiltrosAvanzados] = useState(false);
-  const [ratingMin, setRatingMin] = useState(0);
-  const [difMax, setDifMax] = useState(10);
 
   const [profesores, setProfesores] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -22,7 +33,7 @@ export default function BuscarEstudiante() {
         if (res.ok) {
           setProfesores(data);
         } else {
-          setError(data.message || "Error al cargar los profesores");
+          setError(getErrorMessage(data) || "Error al cargar los profesores");
         }
       } catch (err) {
         setError("Error de conexión al servidor");
@@ -38,20 +49,7 @@ export default function BuscarEstudiante() {
     ...new Set(profesores.map(p => p.departamento))
   ];
 
-  // TEXTO DINÁMICO DIFICULTAD
-  const getDificultadLabel = (val) => {
-    if (val <= 3) return "Fácil";
-    if (val <= 7) return "Media";
-    return "Difícil";
-  };
 
-  // TEXTO DINÁMICO RATING
-  const getRatingLabel = (val) => {
-    if (val === 0) return "Todas";
-    if (val <= 2) return "Bajas";
-    if (val <= 4) return "Buenas";
-    return "Excelentes";
-  };
 
   // FILTRADO DINÁMICO SOBRE PROFESORES
   let profesoresFiltrados = profesores.filter((profe) => {
@@ -70,19 +68,14 @@ export default function BuscarEstudiante() {
       deptoSel === "Todos" ||
       profe.departamento === deptoSel;
 
-    const cumpleRating = !filtrosAvanzados || profe.rating >= ratingMin;
-    const cumpleDificultad = !filtrosAvanzados || profe.dificultad <= difMax;
-
     return (
       cumpleBusqueda &&
-      cumpleDepto &&
-      cumpleRating &&
-      cumpleDificultad
+      cumpleDepto
     );
   });
 
   // LÍMITE DE 10 SI NO HAY BÚSQUEDA ACTIVA
-  const isBuscando = busqueda.trim() !== "" || deptoSel !== "Todos" || filtrosAvanzados;
+  const isBuscando = busqueda.trim() !== "" || deptoSel !== "Todos";
   if (!isBuscando) {
     profesoresFiltrados = profesoresFiltrados.slice(0, 10);
   }
@@ -114,20 +107,6 @@ export default function BuscarEstudiante() {
         <section className="card border-0 shadow-sm p-4 rounded-4 mb-5 bg-white">
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h6 className="fw-bold mb-0">Búsqueda Principal</h6>
-            <div className="form-check form-switch d-flex align-items-center">
-              <input
-                className="form-check-input mt-0 me-2"
-                type="checkbox"
-                role="switch"
-                id="flexSwitchCheckDefault"
-                checked={filtrosAvanzados}
-                onChange={() => setFiltrosAvanzados(!filtrosAvanzados)}
-                style={{ cursor: 'pointer' }}
-              />
-              <label className="form-check-label small fw-bold text-secondary mb-0" htmlFor="flexSwitchCheckDefault">
-                Filtros Avanzados
-              </label>
-            </div>
           </div>
 
           <div className="row g-4 align-items-end">
@@ -178,80 +157,7 @@ export default function BuscarEstudiante() {
               </select>
             </div>
 
-            {/* RATING */}
-            <div className="col-md-4 col-lg-2" style={{ opacity: filtrosAvanzados ? 1 : 0.4, transition: 'opacity 0.3s' }}>
 
-              <div className="d-flex justify-content-between align-items-center">
-
-                <label className="form-label small fw-bold text-secondary mb-1">
-                  Valoración Mínima
-                </label>
-
-                <span className="badge bg-warning text-dark">
-                  ⭐ {ratingMin.toFixed(1)}
-                </span>
-
-              </div>
-
-              <small className="text-muted">
-                {getRatingLabel(ratingMin)}
-              </small>
-
-              <input
-                type="range"
-                className="form-range"
-                min="0"
-                max="5"
-                step="0.5"
-                value={ratingMin}
-                onChange={(e) =>
-                  setRatingMin(parseFloat(e.target.value))
-                }
-                disabled={!filtrosAvanzados}
-              />
-
-            </div>
-
-            {/* DIFICULTAD */}
-            <div className="col-md-4 col-lg-2" style={{ opacity: filtrosAvanzados ? 1 : 0.4, transition: 'opacity 0.3s' }}>
-
-              <div className="d-flex justify-content-between align-items-center">
-
-                <label className="form-label small fw-bold text-secondary mb-1">
-                  Nivel de Exigencia
-                </label>
-
-                <span
-                  className={`badge ${difMax <= 3
-                    ? "bg-success"
-                    : difMax <= 7
-                      ? "bg-info"
-                      : "bg-danger"
-                    }`}
-                >
-                  {difMax}
-                </span>
-
-              </div>
-
-              <small className="text-muted">
-                {getDificultadLabel(difMax)}
-              </small>
-
-              <input
-                type="range"
-                className="form-range"
-                min="1"
-                max="10"
-                step="1"
-                value={difMax}
-                onChange={(e) =>
-                  setDifMax(parseInt(e.target.value))
-                }
-                disabled={!filtrosAvanzados}
-              />
-
-            </div>
 
             {/* RESET */}
             <div className="col-lg-1">
@@ -261,9 +167,6 @@ export default function BuscarEstudiante() {
                 onClick={() => {
                   setBusqueda("");
                   setDeptoSel("Todos");
-                  setFiltrosAvanzados(false);
-                  setRatingMin(0);
-                  setDifMax(10);
                 }}
                 title="Limpiar filtros"
               >
