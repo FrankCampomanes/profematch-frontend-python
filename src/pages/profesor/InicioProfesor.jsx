@@ -49,7 +49,7 @@ const InicioProfesor = () => {
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
 
   const META_CLASES = 10;
-  const MONTO_BONO = 100;
+  const MONTO_BONO = 15;
   const [totalClasesDictadas, setTotalClasesDictadas] = useState(0);
   const [isMetaAlcanzada, setIsMetaAlcanzada] = useState(false);
 
@@ -135,76 +135,48 @@ const InicioProfesor = () => {
     const TARIFA_POR_HORA = 50;
     const COMISION_PORCENTAJE = 0.15; 
 
-    const datosTutoriasFinanzas = [
-      { id: 1, estudiante: "Ana Maria Gomez", curso: "Física de Campos", fecha: "2026-05-20", horas: 2, estado: "Completada" },
-      { id: 2, estudiante: "Guillermo Palacios", curso: "Diseño de Sistemas Web", fecha: "2026-05-24", horas: 1.5, estado: "Completada" },
-      { id: 3, estudiante: "Julio Cárdenas", curso: "Arquitectura de Software", fecha: "2026-05-26", horas: 2, estado: "Completada" },
-      { id: 4, estudiante: "Celia Benavides", curso: "Cálculo Avanzado", fecha: "2026-05-28", horas: 2, estado: "Completada" },
-      { id: 5, estudiante: "Luis carlos Mendez Chavez", curso: "Desarrollo de software", fecha: "2026-06-12", horas: 2, estado: "Pendiente" },
-      { id: 6, estudiante: "Carlos Mendoza", curso: "Física de Campos", fecha: "2026-06-02", horas: 1, estado: "Cancelada por Estudiante" },
-      { id: 7, estudiante: "Gerson Aldair", curso: "Diseño de Sistemas Web", fecha: "2026-06-04", hours: 2, estado: "Cancelada por Profesor" }
-    ];
+    const userSession = JSON.parse(localStorage.getItem('userSession'));
+    const allSessions = StorageService.getSessions() || [];
+    const profSessions = allSessions.filter(s => s.profesorId === (userSession?.id || 1));
 
-    if (!localStorage.getItem("tutorias_financieras")) {
-      localStorage.setItem("tutorias_financieras", JSON.stringify(datosTutoriasFinanzas));
-    }
-
-    const records = JSON.parse(localStorage.getItem("tutorias_financieras")) || datosTutoriasFinanzas;
-
-    let brutoAcumulado = 0;
-    let comisionAcumulada = 0;
     let netoAcumulado = 0;
     let pendientes = 0;
-    let perdidas = 0;
     let contadorCompletadas = 0;
 
-    const listaProcesada = records.map(item => {
-      const horas = Number(item.horas) || 0;
-      
-      // El pago base/neto del docente corresponde directamente a sus horas por la tarifa
-      const pagoNeto = horas * TARIFA_POR_HORA;
-      // La comisión del 15% es un extra cobrado al estudiante
-      const comision = pagoNeto * COMISION_PORCENTAJE;
-      // El bruto total cobrado al estudiante es el neto del profesor + la comisión de la plataforma
-      const pagoBruto = pagoNeto + comision;
+    const listaProcesada = profSessions.map(item => {
+      const inscritos = item.inscritos || 0;
+      const precio = item.precio || 0;
+      const pagoNeto = inscritos * precio;
 
-      if (item.estado === "Completada") {
+      if (item.estado === "Finalizada") {
         netoAcumulado += pagoNeto;
-        comisionAcumulada += comision;
-        brutoAcumulado += pagoBruto;
         contadorCompletadas += 1;
-      } else if (item.estado === "Pendiente") {
+      } else if (item.estado === "Programada") {
         pendientes += pagoNeto;
-      } else if (item.estado && item.estado.startsWith("Cancelada")) {
-        perdidas += pagoNeto;
       }
 
       return {
         ...item,
-        horas: horas,
-        tarifa: TARIFA_POR_HORA,
-        bruto: pagoBruto,
-        comision: comision,
-        neto: pagoNeto
+        pagoNeto
       };
     });
 
     setTotalClasesDictadas(contadorCompletadas);
     setIsMetaAlcanzada(contadorCompletadas >= META_CLASES);
 
+    const bonosGanados = Math.floor(contadorCompletadas / META_CLASES) * MONTO_BONO;
+
     setFinanzas({
-      ingresoBruto: brutoAcumulado,
-      comisionPlataforma: comisionAcumulada,
       ingresoNeto: netoAcumulado,
       ingresosPendientes: pendientes,
-      perdidasCancelacion: perdidas
+      bono: bonosGanados
     });
 
-    setHistorialTransacciones(listaProcesada.slice().reverse());
+    setHistorialTransacciones(listaProcesada.filter(s => s.estado === "Finalizada").slice().reverse());
   }, []);
 
-  const porcentajeProgreso = Math.min((totalClasesDictadas / META_CLASES) * 100, 100);
-  const ingresoNetoFinal = isMetaAlcanzada ? finanzas.ingresoNeto + MONTO_BONO : finanzas.ingresoNeto;
+  const porcentajeProgreso = Math.min(((totalClasesDictadas % META_CLASES) / META_CLASES) * 100, 100);
+  const ingresoNetoFinal = finanzas.ingresoNeto + finanzas.bono;
 
   const datosBarras = {
     labels: ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'],
@@ -251,31 +223,25 @@ const InicioProfesor = () => {
       
       doc.setFontSize(10);
       doc.text(`Fecha de corte: ${new Date().toLocaleDateString()}`, 14, 30);
-      doc.text("Profesor: Juan Jose Silva N.", 14, 36);
+      const userSession = JSON.parse(localStorage.getItem('userSession'));
+      doc.text(`Profesor: ${userSession?.nombres || "Desconocido"}`, 14, 36);
 
-      const columnas = ["Fecha", "Estudiante", "Horas", "Bruto Est.", "Comisión (15%)", "Neto Docente", "Estado"];
+      const columnas = ["Fecha", "Tema", "Curso", "Inscritos", "Precio Alumno", "Neto Docente", "Estado"];
       
-      const registrosSeguros = JSON.parse(localStorage.getItem("tutorias_financieras")) || [];
-      
-      const filas = registrosSeguros.map(t => {
-        const h = Number(t.horas) || 0;
-        const n = h * 50;
-        const c = n * 0.15;
-        const b = n + c;
-        
+      const filas = historialTransacciones.map(t => {
         return [
           String(t.fecha || ""), 
-          String(t.estudiante || ""), 
-          `${h}h`, 
-          `S/. ${b.toFixed(2)}`, 
-          `S/. ${c.toFixed(2)}`, 
-          `S/. ${n.toFixed(2)}`, 
+          String(t.tema || ""), 
+          String(t.curso || ""), 
+          String(t.inscritos || 0), 
+          `S/. ${t.precio?.toFixed(2)}`, 
+          `S/. ${t.pagoNeto?.toFixed(2)}`, 
           String(t.estado || "")
         ];
       });
 
-      if (totalClasesDictadas >= META_CLASES) {
-        filas.push(["-", "BONO EXCELENCIA CUMPLIDO", "-", "-", "-", `S/. ${MONTO_BONO.toFixed(2)}`, "Asignado"]);
+      if (finanzas.bono > 0) {
+        filas.push(["-", "BONOS ACUMULADOS", "-", "-", "-", `S/. ${finanzas.bono.toFixed(2)}`, "Asignado"]);
       }
 
       autoTable(doc, {
@@ -361,66 +327,30 @@ const InicioProfesor = () => {
 
           <div className="p-2 px-3 bg-light rounded d-flex justify-content-between align-items-center" style={{ fontSize: '0.85rem' }}>
             <span className="text-secondary fw-semibold">
-              <i className="bi bi-info-circle me-1"></i> Recompensa extra acumulada por cumplimiento de pauta:
+              <i className="bi bi-info-circle me-1"></i> Recompensa extra acumulada (bonos ganados):
             </span>
-            <span className="fw-bold text-success fs-6">+ S/. {MONTO_BONO.toFixed(2)}</span>
+            <span className="fw-bold text-success fs-6">+ S/. {(finanzas.bono || 0).toFixed(2)}</span>
           </div>
         </div>
 
-        {/* ANALISIS COSTO DE OPORTUNIDAD */}
-        <div className="alert border-0 text-white p-3 mb-4 d-flex justify-content-between align-items-center shadow-sm" style={{ backgroundColor: '#D32F2F', borderRadius: '12px' }}>
-          <div className="d-flex align-items-center gap-3">
-            <i className="bi bi-exclamation-triangle-fill fs-4"></i>
-            <div>
-              <strong className="d-block">Análisis del Costo de Oportunidad</strong>
-              <span className="small opacity-90">Podrías haber ganado S/. {(ingresoNetoFinal + finanzas.perdidasCancelacion).toFixed(2)} este mes si hubieras completado todas tus tutorías publicadas.</span>
-            </div>
-          </div>
-          <span className="fw-bold px-3 py-1 rounded bg-white text-danger shadow-sm">S/. {finanzas.perdidasCancelacion.toFixed(2)} perdidos</span>
-        </div>
-
-        {/* CARDS KPIs */}
-        <div className="row mb-2">
-          <div className="col-md-3 mb-4">
+        <div className="row mb-4">
+          <div className="col-md-6 mb-4">
             <div className="card border-0 shadow-sm h-100 bg-white" style={cardStyle} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
               <div className="card-body p-3 border-start border-success border-5 rounded-end">
-                <span className="text-muted small fw-bold text-uppercase d-block mb-1">Ingreso Neto (+ Bono)</span>
+                <span className="text-muted small fw-bold text-uppercase d-block mb-1">Ingreso Neto (+ Bonos)</span>
                 <h3 className="fw-bold text-success mb-1">S/. {ingresoNetoFinal.toFixed(2)}</h3>
-                <small className="text-muted d-block mt-2">Clases: S/. {finanzas.ingresoNeto.toFixed(2)}</small>
-                <small className="text-success-subtle bg-success px-2 py-0.5 rounded text-white" style={{ fontSize: '0.7rem' }}>Bono incluido: {isMetaAlcanzada ? "SÍ" : "NO"}</small>
+                <small className="text-muted d-block mt-2">Clases: S/. {(finanzas.ingresoNeto || 0).toFixed(2)}</small>
+                <small className="text-success-subtle bg-success px-2 py-0.5 rounded text-white" style={{ fontSize: '0.7rem' }}>Bonos acumulados: S/. {(finanzas.bono || 0).toFixed(2)}</small>
               </div>
             </div>
           </div>
 
-          <div className="col-md-3 mb-4">
-            <div className="card border-0 shadow-sm h-100 bg-white" style={cardStyle} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-              <div className="card-body p-3 border-start border-danger border-5 rounded-end">
-                <span className="text-muted small fw-bold text-uppercase d-block mb-1">Cancelaciones</span>
-                <h3 className="fw-bold text-danger mb-1">S/. {finanzas.perdidasCancelacion.toFixed(2)}</h3>
-                <small className="text-muted d-block mt-2">Tarifa Base por hora: S/. 50.00</small>
-                <span className="badge bg-danger-subtle text-danger px-2 py-1" style={{ fontSize: '0.7rem' }}>Métrica Crítica</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="col-md-3 mb-4">
+          <div className="col-md-6 mb-4">
             <div className="card border-0 shadow-sm h-100 bg-white" style={cardStyle} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
               <div className="card-body p-3 border-start border-primary border-5 rounded-end">
                 <span className="text-muted small fw-bold text-uppercase d-block mb-1">Proyección Próxima</span>
-                <h3 className="fw-bold text-primary mb-1">S/. {finanzas.ingresosPendientes.toFixed(2)}</h3>
-                <small className="text-muted d-block mt-2">Basado en reservas pendientes</small>
-                <span className="badge bg-primary-subtle text-primary px-2 py-1" style={{ fontSize: '0.7rem' }}>Pago estimado: 30/06</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="col-md-3 mb-4">
-            <div className="card border-0 shadow-sm h-100 bg-white" style={cardStyle} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-              <div className="card-body p-3 border-start border-warning border-5 rounded-end">
-                <span className="text-muted small fw-bold text-uppercase d-block mb-1">Ranking Rentabilidad</span>
-                <h3 className="fw-bold mb-1" style={{ color: '#D4AF37' }}>Top 30%</h3>
-                <small className="text-muted d-block mt-2">Área de Ciencias Exactas</small>
-                <span className="badge px-2 py-1" style={{ backgroundColor: 'rgba(212, 175, 55, 0.1)', color: '#D4AF37' }}>Desempeño Dorado</span>
+                <h3 className="fw-bold text-primary mb-1">S/. {(finanzas.ingresosPendientes || 0).toFixed(2)}</h3>
+                <small className="text-muted d-block mt-2">Basado en reservas pendientes (Sesiones Programadas)</small>
               </div>
             </div>
           </div>
@@ -468,36 +398,34 @@ const InicioProfesor = () => {
                 <thead className="table-light text-secondary">
                   <tr>
                     <th>Fecha</th>
-                    <th>Estudiante</th>
-                    <th>Materia</th>
-                    <th>Horas</th>
-                    <th>Tarifa/h</th>
-                    <th>Comisión Est. (15%)</th>
+                    <th>Tema</th>
+                    <th>Curso</th>
+                    <th>Inscritos</th>
+                    <th>Precio Alumno</th>
                     <th>Neto Docente</th>
                     <th className="text-center">Estado</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {historialTransacciones.map((t) => (
+                  {historialTransacciones.length > 0 ? historialTransacciones.map((t) => (
                     <tr key={t.id}>
                       <td className="py-2 text-muted fw-medium">{t.fecha}</td>
-                      <td className="py-2 text-dark fw-bold">{t.estudiante}</td>
+                      <td className="py-2 text-dark fw-bold">{t.tema}</td>
                       <td className="py-2 text-muted">{t.curso}</td>
-                      <td className="py-2 text-dark">{t.horas} hrs</td>
-                      <td className="py-2 text-muted">S/. {t.tarifa.toFixed(2)}</td>
-                      <td className="py-2 text-secondary">S/. {t.comision.toFixed(2)}</td>
-                      <td className="py-2 text-success fw-bold">S/. {t.neto.toFixed(2)}</td>
+                      <td className="py-2 text-dark">{t.inscritos || 0}</td>
+                      <td className="py-2 text-muted">S/. {t.precio?.toFixed(2)}</td>
+                      <td className="py-2 text-success fw-bold">S/. {t.pagoNeto?.toFixed(2)}</td>
                       <td className="py-2 text-center">
-                        <span className={`badge px-2 py-1 rounded ${
-                          t.estado === "Completada" ? "bg-success-subtle text-success" :
-                          t.estado === "Pendiente" ? "bg-primary-subtle text-primary" :
-                          "bg-danger-subtle text-danger"
-                        }`}>
+                        <span className="badge px-2 py-1 rounded bg-success-subtle text-success">
                           {t.estado}
                         </span>
                       </td>
                     </tr>
-                  ))}
+                  )) : (
+                    <tr>
+                      <td colSpan="7" className="text-center py-4 text-muted">No tienes sesiones finalizadas aún.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

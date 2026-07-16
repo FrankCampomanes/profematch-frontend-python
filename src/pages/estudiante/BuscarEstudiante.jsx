@@ -44,9 +44,10 @@ export default function BuscarEstudiante() {
     fetchProfesores();
   }, []);
 
+  const todosLosCursos = profesores.flatMap(p => p.cursos || []);
   const especialidades = [
     "Todos",
-    ...new Set(profesores.map(p => p.departamento))
+    ...new Set(todosLosCursos)
   ];
 
 
@@ -66,7 +67,7 @@ export default function BuscarEstudiante() {
 
     const cumpleDepto =
       deptoSel === "Todos" ||
-      profe.departamento === deptoSel;
+      (Array.isArray(profe.cursos) && profe.cursos.includes(deptoSel));
 
     return (
       cumpleBusqueda &&

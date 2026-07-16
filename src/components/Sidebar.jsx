@@ -147,20 +147,6 @@ export default function Sidebar({ role }) {
     }
   };
 
-  const simularTutoriaFutura = () => {
-    const futura = new Date(Date.now() + 59 * 60000);
-    StorageService.saveTutoringSession({
-      profesorId: 1,
-      profesorNombre: "Profesor Prueba",
-      curso: "Curso de Prueba",
-      foto: "https://randomuser.me/api/portraits/lego/1.jpg",
-      fechaHora: futura.toISOString(),
-      estado: "Confirmada"
-    });
-    alert("Tutoría creada a 59 minutos en el futuro. Espera al próximo ciclo de validación o recarga la página.");
-    verificarRecordatorios();
-  };
-
   const menuConfig = {
     admin: {
       // DEGRADADO CORPORATIVO: Índigo base a Índigo Oscuro (#1F0954)
@@ -275,11 +261,6 @@ export default function Sidebar({ role }) {
             <div className="bg-white rounded shadow p-2 mt-2 position-relative" style={{ zIndex: 1100, border: '1px solid #ddd', maxHeight: '300px', overflowY: 'auto' }}>
               <div className="d-flex justify-content-between align-items-center border-bottom pb-1 mb-1">
                 <h6 className="fw-bold text-dark px-2 pt-1 m-0" style={{ fontSize: '0.8rem' }}>Notificaciones</h6>
-                {role === "estudiante" && (
-                  <button className="btn btn-sm btn-link text-muted p-0" style={{ fontSize: '0.7rem' }} onClick={simularTutoriaFutura} title="Crear tutoría a 59 mins para probar campana">
-                    <i className="bi bi-bug"></i> Debug
-                  </button>
-                )}
               </div>
               {notificaciones.length > 0 ? (
                 notificaciones.slice().reverse().map(n => (

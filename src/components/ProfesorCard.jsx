@@ -51,7 +51,7 @@ export default function ProfesorCard({ profesor, showPrice = false, isTutoria = 
       Exigencia: 1,
       Disponibilidad: 1
     },
-    resenasDestacadas = []
+    resenasDestacadas = (profesor && profesor.resenas) || []
   } = profesor || {};
 
   const navigate = useNavigate();
@@ -419,7 +419,7 @@ export default function ProfesorCard({ profesor, showPrice = false, isTutoria = 
                           </div>
                           <div>
                             <strong className="d-block text-dark" style={{ fontSize: '0.85rem' }}>{r.estudiante}</strong>
-                            <small className="text-muted d-block" style={{ fontSize: '0.7rem' }}>{r.curso} • {r.fecha}</small>
+                            <small className="text-muted d-block" style={{ fontSize: '0.7rem' }}>{r.curso || "General"} • {r.fecha && String(r.fecha).includes('T') ? new Date(r.fecha).toLocaleDateString() : r.fecha}</small>
                           </div>
                           <div className="ms-auto text-warning fw-bold" style={{ fontSize: '0.8rem' }}>
                             <i className="bi bi-star-fill"></i> {r.puntuaciones?.Claridad || rating}

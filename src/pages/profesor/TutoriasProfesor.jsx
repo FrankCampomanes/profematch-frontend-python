@@ -17,14 +17,7 @@ const TutoriasProfesor = () => {
   const [horaNuevaSesionFin, setHoraNuevaSesionFin] = useState('');
   const [enlaceReunion, setEnlaceReunion] = useState('');
 
-  // ALERTA VISUAL
-  const [alertaCancelacionEstudiante, setAlertaCancelacionEstudiante] = useState(false);
 
-  // ESTADOS PARA MODAL DE CANCELACIÓN (PENALIZACIONES)
-  const [mostrarModalCancelacion, setMostrarModalCancelacion] = useState(false);
-  const [sesionACancelar, setSesionACancelar] = useState(null);
-  const [motivoCancelacion, setMotivoCancelacion] = useState('');
-  const [comentarioCancelacion, setComentarioCancelacion] = useState('');
 
   // ESTADOS PARA MODAL DE VALORACIÓN POST-TUTORÍA
   const [mostrarModalValoracion, setMostrarModalValoracion] = useState(false);
@@ -33,10 +26,6 @@ const TutoriasProfesor = () => {
 
   useEffect(() => {
     cargarSesiones();
-    const scoreActual = Number(localStorage.getItem("score_profesor")) || 100;
-    if (scoreActual < 100) {
-      setAlertaCancelacionEstudiante(true);
-    }
 
     // Cargar los cursos que dicta el profesor desde su perfil
     const userSession = JSON.parse(localStorage.getItem('userSession'));
@@ -117,6 +106,15 @@ const TutoriasProfesor = () => {
       return;
     }
 
+    if (!enlaceReunion || enlaceReunion.trim() === '') {
+      Swal.fire({
+        title: 'Enlace Requerido',
+        text: 'Debes incluir un enlace de reunión válido (Zoom, Meet, Teams, etc.) para que los alumnos puedan unirse.',
+        icon: 'warning'
+      });
+      return;
+    }
+
     // Obtenemos al usuario activo
     const userSession = JSON.parse(localStorage.getItem('userSession'));
     const userName = userSession?.nombres || "Prof. Ejemplo (Tú)";
@@ -157,7 +155,8 @@ const TutoriasProfesor = () => {
         horaFin: horaNuevaSesionFin,
         duracion: duracionHoras,
         foto: "https://i.pravatar.cc/150?img=11",
-        precioHora: payload.precio
+        precioHora: payload.precio,
+        enlace_reunion: payload.enlace_reunion
       });
 
       Swal.fire('¡Éxito!', 'La sesión ha sido publicada y está disponible para los alumnos.', 'success');
@@ -192,47 +191,7 @@ const TutoriasProfesor = () => {
     return fechaString;
   };
 
-  const solicitarCancelacion = (sesion) => {
-    setSesionACancelar(sesion);
-    setMotivoCancelacion('');
-    setComentarioCancelacion('');
-    setMostrarModalCancelacion(true);
-  };
 
-  const confirmarCancelacion = () => {
-    if (!motivoCancelacion) {
-      alert("Por favor, selecciona un motivo para la cancelación.");
-      return;
-    }
-
-    const fechaTutoria = new Date(`${sesionACancelar.fecha}T${sesionACancelar.hora}:00`);
-    const ahora = new Date();
-    const diferenciaHoras = (fechaTutoria - ahora) / (1000 * 60 * 60);
-
-    let puntosPenalizacion = 0;
-    let mensajeTiempo = "";
-
-    if (diferenciaHoras < 0) {
-      puntosPenalizacion = 30;
-      mensajeTiempo = "sin aviso (No-Show) (-30 puntos)";
-    } else if (diferenciaHoras < 24) {
-      puntosPenalizacion = 15;
-      mensajeTiempo = "con menos de 24 horas de anticipación (-15 puntos)";
-    } else {
-      puntosPenalizacion = 5;
-      mensajeTiempo = "con más de 24 horas de anticipación (-5 puntos)";
-    }
-
-    alert(`Cancelación registrada.\nConsecuencia: Tu Score disminuirá en ${puntosPenalizacion} puntos por cancelar ${mensajeTiempo}.`);
-
-    const scoreActual = Number(localStorage.getItem("score_profesor")) || 100;
-    localStorage.setItem("score_profesor", Math.max(0, scoreActual - puntosPenalizacion));
-
-    StorageService.updateSession(sesionACancelar.id, { estado: 'Cancelada' });
-    
-    setMostrarModalCancelacion(false);
-    cargarSesiones();
-  };
 
   const handleIniciarSesionVirtual = (sesion) => {
     const ahora = new Date();
@@ -264,6 +223,10 @@ const TutoriasProfesor = () => {
       </li>`;
     }
     htmlAlumnos += '</ul>';
+
+    if (sesion.enlace_reunion) {
+      window.open(sesion.enlace_reunion, '_blank');
+    }
 
     Swal.fire({
       title: 'Sala Virtual Activa',
@@ -326,18 +289,7 @@ const TutoriasProfesor = () => {
       <Sidebar role="profesor" />
       <div className="container-fluid p-4" style={{ backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
         
-        {alertaCancelacionEstudiante && (
-          <div className="alert alert-warning border-0 shadow-sm rounded-4 p-3 mb-4 d-flex align-items-center justify-content-between" style={{ borderLeft: '5px solid #ffc107' }}>
-            <div className="d-flex align-items-center gap-2">
-              <i className="bi bi-exclamation-triangle-fill text-warning fs-4"></i>
-              <div>
-                <strong className="d-block text-dark">Alerta de Agenda</strong>
-                <span className="small text-secondary">Tu Score de confiabilidad ha disminuido debido a cancelaciones recientes.</span>
-              </div>
-            </div>
-            <button className="btn btn-sm btn-outline-secondary rounded-pill px-3" onClick={() => setAlertaCancelacionEstudiante(false)}>Entendido</button>
-          </div>
-        )}
+
 
         <h2 className="mb-4 fw-bold" style={{ color: colores.indigo }}>Gestión de Sesiones de Tutoría</h2>
         
@@ -449,7 +401,7 @@ const TutoriasProfesor = () => {
                     </div>
                   </div>
                   <div className="col-md-12">
-                    <label className="form-label small fw-bold text-secondary">Enlace de la Reunión (Opcional)</label>
+                    <label className="form-label small fw-bold text-secondary">Enlace de la Reunión (Obligatorio)</label>
                     <div className="input-group">
                       <span className="input-group-text bg-light border-0 rounded-start-3 text-muted"><i className="bi bi-link-45deg"></i></span>
                       <input 
@@ -459,6 +411,7 @@ const TutoriasProfesor = () => {
                         value={enlaceReunion}
                         onChange={(e) => setEnlaceReunion(e.target.value)}
                         style={{ padding: '0.6rem 1rem' }}
+                        required
                       />
                     </div>
                   </div>
@@ -495,13 +448,6 @@ const TutoriasProfesor = () => {
                 >
                   <div className="card-header text-white py-3 border-0 d-flex justify-content-between align-items-center" style={{ backgroundColor: colores.indigo, borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
                     <span className="fw-bold small text-uppercase tracking-wider">{sesion.curso}</span>
-                    <button 
-                      className="btn btn-sm text-white p-0 btn-close-white" 
-                      onClick={() => solicitarCancelacion(sesion)}
-                      title="Cancelar sesión"
-                    >
-                      &times;
-                    </button>
                   </div>
                   <div className="card-body p-4 d-flex flex-column justify-content-between">
                     <div>
@@ -548,38 +494,6 @@ const TutoriasProfesor = () => {
         </div>
       </div>
 
-      {/* MODAL CANCELACIÓN */}
-      {mostrarModalCancelacion && sesionACancelar && (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1060 }}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '15px' }}>
-              <div className="modal-header bg-danger text-white border-0" style={{ borderTopLeftRadius: '15px', borderTopRightRadius: '15px' }}>
-                <h5 className="modal-title fw-bold">¿Estás seguro de cancelar esta sesión?</h5>
-                <button type="button" className="btn-close btn-close-white" onClick={() => setMostrarModalCancelacion(false)}></button>
-              </div>
-              <div className="modal-body p-4">
-                <p>Cancelarás la clase de <strong>{sesionACancelar.curso}</strong> del {sesionACancelar.fecha} a las {sesionACancelar.hora}.</p>
-                <div className="mb-3">
-                  <label className="form-label small fw-bold text-secondary">Motivo de la cancelación *</label>
-                  <select 
-                    className="form-select bg-light border-0" 
-                    value={motivoCancelacion} 
-                    onChange={(e) => setMotivoCancelacion(e.target.value)}
-                  >
-                    <option value="">-- Selecciona un motivo --</option>
-                    <option value="Problema de salud">Problema de salud</option>
-                    <option value="Cruce de horario">Cruce de horario</option>
-                  </select>
-                </div>
-              </div>
-              <div className="modal-footer border-0">
-                <button className="btn btn-secondary px-4" onClick={() => setMostrarModalCancelacion(false)}>Volver</button>
-                <button className="btn btn-danger px-4 fw-bold" onClick={confirmarCancelacion}>Confirmar Cancelación</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* MODAL EVALUACIÓN */}
       {mostrarModalValoracion && (

@@ -125,7 +125,8 @@ export default function CheckoutModal({ sesion, onClose, onSuccess }) {
       horaOriginal: sesion.hora,
       totalPagado: total,
       estado: "Confirmada",
-      duracionEstimada: duracion
+      duracionEstimada: duracion,
+      enlace_reunion: sesion.enlace_reunion
     };
 
     // Guardar inscripción del alumno

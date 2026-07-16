@@ -235,10 +235,10 @@ export default function TutoriasEstudiante() {
                               </button>
                             ) : (
                               <button 
-                                className="btn btn-outline-danger btn-sm rounded-pill fw-bold"
-                                onClick={() => setTutoriaACancelar(tut)}
+                                className="btn btn-outline-secondary btn-sm rounded-pill fw-bold"
+                                disabled
                               >
-                                <i className="bi bi-x-circle me-2"></i> Cancelar Tutoría
+                                <i className="bi bi-clock me-2"></i> Esperando hora de inicio
                               </button>
                             )}
                           </div>
@@ -396,13 +396,7 @@ export default function TutoriasEstudiante() {
         />
       )}
 
-      {tutoriaACancelar && (
-        <ModalCancelacion
-          tutoria={tutoriaACancelar}
-          onClose={() => setTutoriaACancelar(null)}
-          onSuccess={() => { setTutoriaACancelar(null); cargarDatos(); }}
-        />
-      )}
+
     </div>
   );
 }
