@@ -44,7 +44,10 @@ export default function BuscarEstudiante() {
     fetchProfesores();
   }, []);
 
-  const todosLosCursos = profesores.flatMap(p => p.cursos || []);
+  const todosLosCursos = profesores.flatMap(p => {
+    if (!p.cursos) return [];
+    return p.cursos.map(c => typeof c === 'object' ? c.nombre : c);
+  });
   const especialidades = [
     "Todos",
     ...new Set(todosLosCursos)
@@ -58,7 +61,9 @@ export default function BuscarEstudiante() {
     const textoBusqueda = busqueda.trim().toLowerCase();
     
     // Convertir el arreglo de cursos a string para la búsqueda
-    const cursosStr = Array.isArray(profe.cursos) ? profe.cursos.join(" ").toLowerCase() : "";
+    const cursosStr = Array.isArray(profe.cursos) 
+      ? profe.cursos.map(c => (typeof c === 'object' ? c.nombre : c)).join(" ").toLowerCase() 
+      : "";
 
     const cumpleBusqueda =
       profe.nombre.toLowerCase().includes(textoBusqueda) ||
@@ -67,7 +72,7 @@ export default function BuscarEstudiante() {
 
     const cumpleDepto =
       deptoSel === "Todos" ||
-      (Array.isArray(profe.cursos) && profe.cursos.includes(deptoSel));
+      (Array.isArray(profe.cursos) && profe.cursos.map(c => typeof c === 'object' ? c.nombre : c).includes(deptoSel));
 
     return (
       cumpleBusqueda &&

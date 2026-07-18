@@ -2,13 +2,16 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import Swal from "sweetalert2";
 import { StorageService } from "../../core/database/StorageService";
+import { useLocation } from "react-router-dom";
 
 export default function UsuariosAdmin() {
+  const location = useLocation();
+
   // 1. ESTADOS PRINCIPALES
   const [usuarios, setUsuarios] = useState([]);
   const [cargando, setCargando] = useState(true);
   
-  const [busqueda, setBusqueda] = useState("");
+  const [busqueda, setBusqueda] = useState(location.state?.search || "");
   const [filtroRol, setFiltroRol] = useState("Todos");
   
   // CONTROL DE VISTA: 'activos' o 'papelera' o 'pendientes'
@@ -137,8 +140,8 @@ export default function UsuariosAdmin() {
     } catch (error) {
       console.error("Error al procesar usuario:", error);
       Swal.fire({
-        title: "Error Operacional",
-        text: "No se pudieron consolidar los cambios en el sistema.",
+        title: "Datos Inválidos",
+        text: "Por favor, verifica que todos los campos tengan un formato válido (ej. correo electrónico correcto).",
         icon: "error",
         confirmButtonColor: "#1F0954",
         background: "#f8f9fa"
@@ -369,8 +372,7 @@ export default function UsuariosAdmin() {
                     <th className="ps-3">Usuario</th>
                     <th>Tipo de Cuenta</th>
                     <th>Score de Confiabilidad</th>
-                    <th>Plan / Alertas</th>
-                    <th className="text-end pe-3">Acciones</th>
+                    <th className="text-end">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -406,30 +408,6 @@ export default function UsuariosAdmin() {
                           >
                             {u.score_confiabilidad} pts
                           </span>
-                        </td>
-                        <td>
-                          {u.rol.toLowerCase() === 'profesor' && u.plan === 'Premium' && (
-                            <span className="badge me-2 px-2 py-1 bg-warning text-dark border border-warning">
-                              <i className="bi bi-star-fill text-dark me-1"></i> Premium
-                            </span>
-                          )}
-                          {u.rol.toLowerCase() === 'profesor' && (!u.plan || u.plan === 'Gratuito') && (
-                            <span className="badge me-2 px-2 py-1 bg-light text-dark border">
-                              Gratuito
-                            </span>
-                          )}
-                          {u.quejas > 0 && (
-                            <span 
-                              className="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"
-                              style={{ cursor: 'pointer' }}
-                              onClick={() => abrirModalQuejas(u)}
-                            >
-                              <i className="bi bi-exclamation-triangle-fill me-1"></i> {u.quejas} Quejas
-                            </span>
-                          )}
-                          {u.rol.toLowerCase() === 'estudiante' && (!u.quejas || u.quejas === 0) && (
-                            <span className="text-muted fst-italic small">Sin alertas</span>
-                          )}
                         </td>
                         <td className="text-end pe-3">
                           {vistaActual === 'activos' ? (

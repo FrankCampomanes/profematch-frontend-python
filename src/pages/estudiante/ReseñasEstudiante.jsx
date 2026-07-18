@@ -25,7 +25,7 @@ export default function ResenasEstudiante() {
 
   const numCategoriasEvaluadas = Object.values(categorias).filter(val => val > 0).length;
   const sumaCategorias = Object.values(categorias).reduce((a, b) => a + b, 0);
-  const rating = sumaCategorias > 0 ? Math.round(sumaCategorias / 6) : 0;
+  const rating = sumaCategorias > 0 ? (Math.round((sumaCategorias / 6) * 2) / 2) : 0;
 
   useEffect(() => {
     cargarDatos();
@@ -286,9 +286,12 @@ export default function ResenasEstudiante() {
                             </div>
                             
                             {res.respuesta_profesor && (
-                              <div className="mt-3 p-3 rounded bg-light border-start border-primary border-4">
-                                <small className="fw-bold d-block text-primary mb-1">Respuesta del Profesor:</small>
-                                <span className="small text-muted fst-italic">"{res.respuesta_profesor}"</span>
+                              <div className="mt-3 p-3 rounded-4 border-0" style={{ background: 'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)', boxShadow: '0 4px 15px rgba(142, 197, 252, 0.2)' }}>
+                                <div className="d-flex align-items-center mb-2">
+                                  <i className="bi bi-reply-fill fs-5 text-indigo me-2"></i>
+                                  <small className="fw-bold text-dark mb-0">Respuesta del Profe:</small>
+                                </div>
+                                <span className="small text-dark fst-italic fw-medium">"{res.respuesta_profesor}"</span>
                               </div>
                             )}
                             

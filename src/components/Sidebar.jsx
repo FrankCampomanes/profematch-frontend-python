@@ -56,9 +56,34 @@ export default function Sidebar({ role }) {
   };
 
   // NUEVA FUNCIÓN PARA PROFESOR
-  const cargarDatosProfesor = () => {
+  const cargarDatosProfesor = async () => {
     setScoreConfiabilidad(Number(localStorage.getItem("score_profesor")) || 100);
-    setNotificaciones(StorageService.getNotificationsProfesor());
+    let localNotif = StorageService.getNotificationsProfesor() || [];
+    
+    try {
+      const userSession = JSON.parse(localStorage.getItem('userSession'));
+      if (userSession) {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/advertencias/profesor/${userSession.id}`);
+        if (res.ok) {
+           const advertencias = await res.json();
+           const advNoLeidas = advertencias
+             .filter(a => !a.leida)
+             .map(a => ({
+                id: `adv-${a.id}`,
+                tipo: "advertencia_admin",
+                mensaje: `Advertencia de Administración: ${a.mensaje}`,
+                fechaHoraRef: a.fecha || new Date().toISOString(),
+                leida: false,
+                enlace: "/evaluaciones-profesor"
+             }));
+           localNotif = [...advNoLeidas, ...localNotif];
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching advertencias para sidebar", e);
+    }
+    
+    setNotificaciones(localNotif);
   };
 
   const verificarRecordatorios = () => {
@@ -281,7 +306,7 @@ export default function Sidebar({ role }) {
                           navigate(n.enlace);
                         }}
                       >
-                        Ir a la sala
+                        {n.tipo === 'advertencia_admin' ? 'Ver' : 'Ir a la sala'}
                       </button>
                     )}
                   </div>

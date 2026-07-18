@@ -7,6 +7,7 @@ const EvaluacionesProfesor = () => {
   const [palabraFiltro, setPalabraFiltro] = useState(''); // Filtro por Nube de Palabras
   const [respuestas, setRespuestas] = useState({});
   const [nubePalabras, setNubePalabras] = useState([]);
+  const [advertencias, setAdvertencias] = useState([]);
 
   useEffect(() => {
     const fetchResenas = async () => {
@@ -30,7 +31,21 @@ const EvaluacionesProfesor = () => {
         console.error("Error cargando reseñas:", err);
       }
     };
+
+    const fetchAdvertencias = async () => {
+      try {
+        const userSession = JSON.parse(localStorage.getItem('userSession'));
+        if (!userSession) return;
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/advertencias/profesor/${userSession.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setAdvertencias(data.filter(a => !a.leida));
+        }
+      } catch (err) {}
+    };
+
     fetchResenas();
+    fetchAdvertencias();
   }, []);
 
   // LÓGICA REQUERIDA: PROCESAR COMENTARIOS PARA LA NUBE DE PALABRAS (TAG CLOUD)
@@ -91,19 +106,29 @@ const EvaluacionesProfesor = () => {
     }
   };
 
+  const marcarAdvertenciaLeida = async (id) => {
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/admin/advertencias/${id}/marcar-leida`, { method: 'PUT' });
+      setAdvertencias(prev => prev.filter(a => a.id !== id));
+    } catch (err) {}
+  };
+
   // Calculate dynamic average rating
   const avgRating = resenas.length > 0 
     ? (resenas.reduce((sum, r) => sum + r.estrellas, 0) / resenas.length).toFixed(1)
     : '0.0';
 
-  // Renderizar estrellas usando iconos de Bootstrap en lugar de emojis
   const renderEstrellas = (cantidad) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <i 
-        key={i} 
-        className={`bi ${i < cantidad ? 'bi-star-fill text-warning' : 'bi-star text-muted'} me-1`}
-      ></i>
-    ));
+    return Array.from({ length: 5 }, (_, i) => {
+      const index = i + 1;
+      let iconClass = 'bi-star text-muted';
+      if (cantidad >= index) iconClass = 'bi-star-fill text-warning';
+      else if (cantidad >= index - 0.5) iconClass = 'bi-star-half text-warning';
+      
+      return (
+        <i key={i} className={`bi ${iconClass} me-1`}></i>
+      );
+    });
   };
 
   // Lógica de filtrado combinada (Estrellas + Palabra seleccionada de la Nube)
@@ -118,11 +143,29 @@ const EvaluacionesProfesor = () => {
       <Sidebar role="profesor" />
     
       <div className="container-fluid p-4" style={{ backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
+        <h2 className="mb-4 fw-bold" style={{ color: '#1F0954' }}>Mis Reseñas y Calificaciones</h2>
+        
+        {/* BANNER DE ADVERTENCIAS */}
+        {advertencias.length > 0 && (
+          <div className="mb-4">
+            {advertencias.map(adv => (
+              <div key={adv.id} className="alert alert-danger d-flex justify-content-between align-items-center shadow-sm rounded-4 border-0" role="alert">
+                <div>
+                  <h6 className="alert-heading fw-bold mb-1"><i className="bi bi-exclamation-triangle-fill me-2"></i>Advertencia de Administración</h6>
+                  <p className="mb-0 small">{adv.mensaje}</p>
+                  <small className="opacity-75">{adv.fecha}</small>
+                </div>
+                <button type="button" className="btn btn-sm btn-outline-danger rounded-pill fw-bold" onClick={() => marcarAdvertenciaLeida(adv.id)}>
+                  Marcar como leída
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         
         {/* HEADER CON FILTRO */}
         <div className="d-flex justify-content-between align-items-center mb-4">
           <div>
-            <h2 className="mb-1 fw-bold" style={{ color: '#3F51B5' }}>Mis Reseñas y Calificaciones</h2>
             <p className="text-muted small mb-0">Gestiona tu feedback y analiza los términos más comunes de tus alumnos.</p>
           </div>
           <div className="d-flex gap-3 align-items-center">
@@ -256,7 +299,7 @@ const EvaluacionesProfesor = () => {
             <div className="card border-0 shadow-sm p-4" style={{ borderRadius: '15px' }}>
               <h5 className="fw-bold mb-4">Distribución</h5>
               {[5, 4, 3, 2, 1].map(num => {
-                const cantidad = resenas.filter(r => r.estrellas === num).length;
+                const cantidad = resenas.filter(r => Math.round(r.estrellas) === num).length;
                 const porcentaje = (cantidad / resenas.length) * 100 || 0;
                 return (
                   <div className="mb-3" key={num}>

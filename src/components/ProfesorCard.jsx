@@ -74,6 +74,8 @@ export default function ProfesorCard({ profesor, showPrice = false, isTutoria = 
     }
   };
 
+  const displayFoto = foto || `https://ui-avatars.com/api/?name=${encodeURIComponent(nombre)}&background=random`;
+
   return (
     <>
       <div
@@ -100,8 +102,8 @@ export default function ProfesorCard({ profesor, showPrice = false, isTutoria = 
             <>
               <div className="d-flex align-items-center gap-3 mb-3 text-start">
                 <img
-                  src={foto}
-                  onError={(e) => { e.target.onerror = null; e.target.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(nombre) + "&background=random"; }}
+                  src={displayFoto}
+                  onError={(e) => { e.target.onerror = null; e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(nombre)}&background=random`; }}
                   className="rounded-circle border border-2 border-light shadow-sm"
                   style={{ width: "60px", height: "60px", objectFit: "cover" }}
                   alt={nombre}
@@ -128,7 +130,8 @@ export default function ProfesorCard({ profesor, showPrice = false, isTutoria = 
               {/* Foto */}
               <div className="mb-3 position-relative d-inline-block mx-auto">
                 <img
-                  src={foto}
+                  src={displayFoto}
+                  onError={(e) => { e.target.onerror = null; e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(nombre)}&background=random`; }}
                   alt={nombre}
                   className="rounded-circle shadow-sm border border-3 mx-auto"
                   style={{

@@ -109,9 +109,16 @@ export default function TutoriasEstudiante() {
 
           // Mapear estado: si sesión finalizada → Completada
           let estadoMostrar = "Confirmada";
-          if (insc.estado_sesion === "Finalizada") estadoMostrar = "Completada";
-          else if (insc.estado_sesion === "Cancelada") estadoMostrar = "Cancelada";
-          else if (insc.estado_inscripcion === "Cancelado") estadoMostrar = "Cancelada";
+          
+          // Lógica Frontend Auto-Finalizar: Sesiones fantasma (+60 min de hora_fin)
+          const ahora = new Date();
+          const limiteGracia = new Date(end.getTime() + 60 * 60000);
+          
+          if (insc.estado_sesion === "Finalizada" || (insc.estado_sesion === "Programada" && ahora > limiteGracia)) {
+            estadoMostrar = "Completada";
+          } else if (insc.estado_sesion === "Cancelada" || insc.estado_inscripcion === "Cancelado") {
+            estadoMostrar = "Cancelada";
+          }
 
           return {
             id: insc.inscripcion_id,
@@ -154,7 +161,12 @@ export default function TutoriasEstudiante() {
 
   let cursosAMostrar = Object.keys(courseDurations);
   if (profesorFiltroCursos && profesorFiltroCursos.length > 0) {
-    cursosAMostrar = cursosAMostrar.filter(c => profesorFiltroCursos.includes(c));
+    const nombresFiltro = profesorFiltroCursos.map(c => typeof c === 'object' ? (c.nombre || c) : c);
+    cursosAMostrar = cursosAMostrar.filter(c => nombresFiltro.includes(c));
+    // Incluir cualquier curso que tenga el profesor pero no esté en courseDurations por defecto
+    nombresFiltro.forEach(c => {
+      if (!cursosAMostrar.includes(c)) cursosAMostrar.push(c);
+    });
   }
 
   const isHoraDeClase = (fechaISO, duracionHoras = 1.5) => {
