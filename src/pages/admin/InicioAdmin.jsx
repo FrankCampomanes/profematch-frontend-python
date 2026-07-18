@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from "../../components/Sidebar";
+import Swal from 'sweetalert2';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable'; 
 
@@ -31,36 +32,107 @@ const InicioAdmin = () => {
     usuariosRiesgo: 0
   });
 
+  const [ingresosSemanales, setIngresosSemanales] = useState([0, 0, 0, 0]);
+  const [saludComunidad, setSaludComunidad] = useState({ excelente: 0, bueno: 0, regular: 0, critico: 0 });
   const [historialAuditoria, setHistorialAuditoria] = useState([]);
   const [mostrarModal, setMostrarModal] = useState(false);
+  const [procesandoId, setProcesandoId] = useState(null);
+
+  const cargarDashboard = async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/dashboard/admin`);
+      if (!res.ok) throw new Error('Error al obtener el dashboard');
+      const data = await res.json();
+
+      setFinanzas(data.finanzas);
+      setModeracion(data.moderacion);
+      setIngresosSemanales(data.ingresosSemanales);
+      setSaludComunidad(data.saludComunidad);
+      setHistorialAuditoria(data.historialAuditoria);
+    } catch (error) {
+      console.error('Error cargando el dashboard admin:', error);
+    }
+  };
 
   useEffect(() => {
-    const comisionesMes = 3250.00; 
-    const suscripcionesMes = 1600.50; 
-    
-    setFinanzas({
-      ingresoNetoTotal: comisionesMes + suscripcionesMes,
-      comisiones: comisionesMes,
-      suscripciones: suscripcionesMes
-    });
-
-    setModeracion({
-      quejasPendientes: 12,
-      usuariosRiesgo: 8
-    });
-
-    setHistorialAuditoria([
-      { id: "CASO-001", fecha: "2026-05-14", reportado: "Ana Silva", acusado: "Luis Ramírez", tipo: "No-show (Falta)", gravedad: "Alta", estado: "Pendiente" },
-      { id: "CASO-002", fecha: "2026-05-13", reportado: "Sistema", acusado: "Pedro Ruiz", tipo: "Score Crítico (30pts)", gravedad: "Media", estado: "En Revisión" },
-    ]);
+    cargarDashboard();
   }, []);
+
+  const aplicarSancion = async (caso) => {
+    const confirmacion = await Swal.fire({
+      title: '¿Aplicar sanción?',
+      html: `Se restarán <b>30 puntos</b> de score de confiabilidad a <b>${caso.acusado}</b>.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, sancionar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#D32F2F'
+    });
+    if (!confirmacion.isConfirmed) return;
+
+    setProcesandoId(caso.id);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/dashboard/quejas/${caso.id}/sancionar`, {
+        method: 'PUT'
+      });
+      if (!res.ok) throw new Error('Error al aplicar la sanción');
+
+      Swal.fire({
+        title: 'Sanción aplicada',
+        text: `Se le restaron 30 puntos a ${caso.acusado}.`,
+        icon: 'success',
+        confirmButtonColor: '#1F0954'
+      });
+
+      await cargarDashboard();
+    } catch (error) {
+      console.error('Error al sancionar:', error);
+      Swal.fire('Error', 'No se pudo aplicar la sanción. Intenta de nuevo.', 'error');
+    } finally {
+      setProcesandoId(null);
+    }
+  };
+
+  const desestimarCaso = async (caso) => {
+    const confirmacion = await Swal.fire({
+      title: '¿Desestimar caso?',
+      text: `La queja contra ${caso.acusado} se cerrará sin aplicar penalidad.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, desestimar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#1F0954'
+    });
+    if (!confirmacion.isConfirmed) return;
+
+    setProcesandoId(caso.id);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/dashboard/quejas/${caso.id}/desestimar`, {
+        method: 'PUT'
+      });
+      if (!res.ok) throw new Error('Error al desestimar');
+
+      Swal.fire({
+        title: 'Caso desestimado',
+        icon: 'success',
+        confirmButtonColor: '#1F0954'
+      });
+
+      await cargarDashboard();
+    } catch (error) {
+      console.error('Error al desestimar:', error);
+      Swal.fire('Error', 'No se pudo desestimar el caso. Intenta de nuevo.', 'error');
+    } finally {
+      setProcesandoId(null);
+    }
+  };
 
   const datosBarras = {
     labels: ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'],
     datasets: [
       {
         label: 'Ingresos Plataforma (S/.)',
-        data: [1200, 1800, 1500, 350],
+        data: ingresosSemanales,
         backgroundColor: '#1F0954', // Color corporativo principal
         borderRadius: 6,
       },
@@ -71,7 +143,7 @@ const InicioAdmin = () => {
     labels: ['Excelente (90-100)', 'Bueno (70-89)', 'Regular (50-69)', 'Crítico (0-49)'],
     datasets: [
       {
-        data: [65, 20, 10, 5],
+        data: [saludComunidad.excelente, saludComunidad.bueno, saludComunidad.regular, saludComunidad.critico],
         backgroundColor: ['#198754', '#ffc107', '#fd7e14', '#dc3545'],
         borderWidth: 0,
       },
@@ -218,7 +290,7 @@ const InicioAdmin = () => {
                 <div className="col-6 position-relative" style={{ height: '180px' }}>
                   <Doughnut data={datosDistribucion} options={opcionesDoughnut} />
                   <div className="position-absolute top-50 start-50 translate-middle text-center w-100">
-                    <span className="fs-4 fw-bold text-success">65%</span>
+                    <span className="fs-4 fw-bold text-success">{saludComunidad.excelente}%</span>
                   </div>
                 </div>
                 <div className="col-6">
@@ -243,29 +315,45 @@ const InicioAdmin = () => {
                   <button type="button" className="btn-close btn-close-white shadow-none m-0" onClick={() => setMostrarModal(false)}></button>
                 </div>
                 <div className="modal-body p-4">
-                  <table className="table table-hover border mb-0 align-middle">
-                    <thead className="table-light">
-                      <tr>
-                        <th>Acusado</th>
-                        <th>Infracción</th>
-                        <th>Penalidad Sugerida</th>
-                        <th className="text-end">Acción Administrativa</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {historialAuditoria.filter(c => c.estado !== "Resuelto").map(caso => (
-                        <tr key={caso.id}>
-                          <td className="fw-bold text-dark">{caso.acusado}</td>
-                          <td>{caso.tipo}</td>
-                          <td><span className="badge bg-danger px-2">-30 pts</span></td>
-                          <td className="text-end">
-                            <button className="btn btn-sm btn-outline-danger fw-bold me-2">Aplicar Sanción</button>
-                            <button className="btn btn-sm btn-light text-muted">Desestimar</button>
-                          </td>
+                  {historialAuditoria.filter(c => c.estado !== "Resuelto").length === 0 ? (
+                    <p className="text-muted text-center mb-0 py-3">No hay casos pendientes por resolver.</p>
+                  ) : (
+                    <table className="table table-hover border mb-0 align-middle">
+                      <thead className="table-light">
+                        <tr>
+                          <th>Acusado</th>
+                          <th>Infracción</th>
+                          <th>Penalidad Sugerida</th>
+                          <th className="text-end">Acción Administrativa</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {historialAuditoria.filter(c => c.estado !== "Resuelto").map(caso => (
+                          <tr key={caso.id}>
+                            <td className="fw-bold text-dark">{caso.acusado}</td>
+                            <td>{caso.tipo}</td>
+                            <td><span className="badge bg-danger px-2">-30 pts</span></td>
+                            <td className="text-end">
+                              <button
+                                className="btn btn-sm btn-outline-danger fw-bold me-2"
+                                disabled={procesandoId === caso.id}
+                                onClick={() => aplicarSancion(caso)}
+                              >
+                                {procesandoId === caso.id ? 'Procesando...' : 'Aplicar Sanción'}
+                              </button>
+                              <button
+                                className="btn btn-sm btn-light text-muted"
+                                disabled={procesandoId === caso.id}
+                                onClick={() => desestimarCaso(caso)}
+                              >
+                                Desestimar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
                 <div className="modal-footer border-0 bg-light">
                   <button className="btn btn-secondary px-4 fw-semibold" onClick={() => setMostrarModal(false)}>Cerrar Tribunal</button>
