@@ -9,20 +9,34 @@ const EvaluacionesProfesor = () => {
   const [nubePalabras, setNubePalabras] = useState([]);
 
   useEffect(() => {
-    const iniciales = [
-      { id: 1, alumno: "Ana Silva", comentario: "Excelente metodología, muy paciente.", estrellas: 5, fecha: "12/05/2026" },
-      { id: 2, alumno: "Gerson Aldair", comentario: "Buen dominio del tema, pero falta material.", estrellas: 4, fecha: "14/05/2026" },
-      { id: 3, alumno: "Julio Casas", comentario: "La clase es interesante pero un poco rápida.", estrellas: 3, fecha: "15/05/2026" },
-    ];
-    
-    const datosGuardados = JSON.parse(localStorage.getItem("resenas_profe")) || iniciales;
-    setResenas(datosGuardados);
-    generarNubePalabras(datosGuardados);
+    const fetchResenas = async () => {
+      try {
+        const userSession = JSON.parse(localStorage.getItem('userSession'));
+        if (!userSession) return;
+        
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/resenas/profesor/${userSession.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setResenas(data);
+          generarNubePalabras(data);
+          // Pre-cargar respuestas
+          const respMap = {};
+          data.forEach(r => {
+             if (r.respuesta_profesor) respMap[r.id] = r.respuesta_profesor;
+          });
+          setRespuestas(respMap);
+        }
+      } catch (err) {
+        console.error("Error cargando reseñas:", err);
+      }
+    };
+    fetchResenas();
   }, []);
 
   // LÓGICA REQUERIDA: PROCESAR COMENTARIOS PARA LA NUBE DE PALABRAS (TAG CLOUD)
   const generarNubePalabras = (listaResenas) => {
-    const palabrasExcluidas = ['la', 'el', 'los', 'las', 'un', 'una', 'en', 'de', 'del', 'y', 'es', 'son', 'pero', 'un', 'muy', 'con', 'para'];
+    // Filtro estricto según requerimientos: solo estas palabras se mostrarán
+    const palabrasPermitidas = ['excelente', 'metodologia', 'metodología', 'interesante', 'falta', 'mal', 'poco'];
     const conteo = {};
 
     listaResenas.forEach(r => {
@@ -33,10 +47,18 @@ const EvaluacionesProfesor = () => {
         .split(/\s+/);
 
       palabras.forEach(palabra => {
-        if (palabra.length > 2 && !palabrasExcluidas.includes(palabra)) {
-          conteo[palabra] = (conteo[palabra] || 0) + 1;
+        if (palabrasPermitidas.includes(palabra)) {
+          // Normalizar metodología para agrupar
+          const key = (palabra === 'metodologia') ? 'metodología' : palabra;
+          conteo[key] = (conteo[key] || 0) + 1;
         }
       });
+    });
+
+    // Ensure all permitted words appear even with 0 count
+    palabrasPermitidas.forEach(p => {
+       const key = (p === 'metodologia') ? 'metodología' : p;
+       if (!conteo[key]) conteo[key] = 0;
     });
 
     // Convertir a estructura de array con tamaños adaptativos para CSS
@@ -53,10 +75,26 @@ const EvaluacionesProfesor = () => {
   };
 
   // Función para manejar las respuestas del profesor
-  const enviarRespuesta = (id, texto) => {
+  const enviarRespuesta = async (id, texto) => {
     if (!texto.trim()) return;
-    setRespuestas({ ...respuestas, [id]: texto });
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/resenas/${id}/responder`, {
+         method: 'PUT',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ respuesta: texto })
+      });
+      if (res.ok) {
+         setRespuestas({ ...respuestas, [id]: texto });
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
+
+  // Calculate dynamic average rating
+  const avgRating = resenas.length > 0 
+    ? (resenas.reduce((sum, r) => sum + r.estrellas, 0) / resenas.length).toFixed(1)
+    : '0.0';
 
   // Renderizar estrellas usando iconos de Bootstrap en lugar de emojis
   const renderEstrellas = (cantidad) => {
@@ -108,7 +146,7 @@ const EvaluacionesProfesor = () => {
               <option value="3">3 Estrellas</option>
             </select>
             <div className="bg-white p-2 rounded shadow-sm border px-3 d-flex align-items-center gap-1">
-              <span className="fw-bold text-primary">4.5 / 5</span>
+              <span className="fw-bold text-primary">{avgRating} / 5</span>
               <i className="bi bi-star-fill text-warning"></i>
             </div>
           </div>

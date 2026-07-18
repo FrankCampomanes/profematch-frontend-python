@@ -31,39 +31,92 @@ const TutoriasProfesor = () => {
     const userSession = JSON.parse(localStorage.getItem('userSession'));
     if (userSession && userSession.cursos && userSession.cursos.length > 0) {
       setMisCursos(userSession.cursos);
-      setCursoNuevaSesion(userSession.cursos[0].id);
+      const primerCurso = userSession.cursos[0];
+      setCursoNuevaSesion(primerCurso.id ? primerCurso.id : primerCurso);
     } else {
       setMisCursos([{ id: "", nombre: "Pendiente de asignar" }]);
       setCursoNuevaSesion("");
     }
   }, []);
 
-  const cargarSesiones = () => {
-    const sesiones = StorageService.getSessions();
-    // Filtramos para mostrar solo las programadas. Las finalizadas se ocultan.
-    setSesionesCreadas(sesiones.filter(s => s.estado === "Programada"));
+  const cargarSesiones = async () => {
+    try {
+      const userSession = JSON.parse(localStorage.getItem('userSession'));
+      if (!userSession) return;
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/professors/${userSession.id}/sesiones`);
+      if (res.ok) {
+        const sesiones = await res.json();
+        // Mapear el formato backend al formato que espera la UI
+        const mapped = sesiones.map(s => {
+          // IMPORTANTE: el backend devuelve fechas en UTC sin 'Z'. Añadimos 'Z' para que
+          // JS las interprete como UTC y las convierta correctamente a hora local.
+          const start = new Date(s.fecha_hora_inicio + 'Z');
+          const end = new Date(s.fecha_hora_fin + 'Z');
+          const duracionHoras = ((end - start) / (1000 * 60 * 60)).toFixed(1);
+          
+          // Formatear fecha como YYYY-MM-DD
+          const anio = start.getFullYear();
+          const mes = String(start.getMonth() + 1).padStart(2, '0');
+          const dia = String(start.getDate()).padStart(2, '0');
+          const fechaStr = `${anio}-${mes}-${dia}`;
+          
+          const horaStr = start.toTimeString().split(' ')[0].substring(0, 5);
+          const horaFinStr = end.toTimeString().split(' ')[0].substring(0, 5);
+
+          return {
+            id: s.id,
+            profesorId: userSession.id,
+            curso: s.tema, // para simplificar o mapear con nombre del curso
+            tema: s.tema,
+            fecha: fechaStr,
+            hora: horaStr,
+            horaFin: horaFinStr,
+            duracion: duracionHoras,
+            inscritos: s.inscritos_actuales,
+            cuposMaximos: s.cupos_maximos,
+            estado: s.estado,
+            enlace_reunion: s.enlace_reunion,
+            fecha_hora_inicio: s.fecha_hora_inicio,
+            fecha_hora_fin: s.fecha_hora_fin
+          };
+        });
+
+        // Filtrar sesiones: solo las Programadas. Pero si ya pasaron de su fecha_hora_fin y siguen como Programada,
+        // no las mostramos en la agenda principal o las consideramos pasadas.
+        const ahora = new Date();
+        const activas = mapped.filter(s => {
+          if (s.estado !== "Programada") return false;
+          // Si una sesión dice programada pero ya venció (pasó su hora de fin), no se muestra en la agenda activa de programadas
+          const fin = new Date(s.fecha_hora_fin + 'Z');
+          return fin > ahora;
+        });
+
+        setSesionesCreadas(activas);
+      }
+    } catch (err) {
+      console.error("Error al cargar sesiones del backend:", err);
+    }
   };
 
-  const handleCrearSesion = (e) => {
+  const handleCrearSesion = async (e) => {
     e.preventDefault();
     if (!cursoNuevaSesion || cursoNuevaSesion === "Pendiente de asignar") {
-      Swal.fire('Error', 'Debes seleccionar un curso válido antes de crear la sesión.', 'error');
+      Swal.fire('Aviso', 'Debes seleccionar un curso válido antes de crear la sesión.', 'warning');
       return;
     }
     if (!temaNuevaSesion.trim()) {
-      Swal.fire('Error', 'Debes especificar el tema de la sesión.', 'error');
+      Swal.fire('Aviso', 'Debes especificar el tema de la sesión.', 'warning');
       return;
     }
     if (!fechaNuevaSesion || !horaNuevaSesion || !horaNuevaSesionFin) {
-      Swal.fire('Error', 'Completa todos los campos de fecha y hora.', 'error');
+      Swal.fire('Aviso', 'Completa todos los campos de fecha y hora.', 'warning');
       return;
     }
     if (precioNuevaSesion < 5) {
-      Swal.fire('Error', 'El precio mínimo debe ser de 5 soles.', 'error');
+      Swal.fire('Aviso', 'El precio mínimo debe ser de 5 soles.', 'warning');
       return;
     }
 
-    const todasSesiones = StorageService.getSessions();
     const nuevaFechaHora = new Date(`${fechaNuevaSesion}T${horaNuevaSesion}:00`);
     let nuevaFechaHoraFin = new Date(`${fechaNuevaSesion}T${horaNuevaSesionFin}:00`);
     
@@ -86,26 +139,6 @@ const TutoriasProfesor = () => {
       return;
     }
 
-    const hayChoque = todasSesiones.some(s => {
-      if (s.estado !== 'Programada') return false;
-      const sInicio = new Date(`${s.fecha}T${s.hora}:00`);
-      // Si el formato antiguo no tenía horaFin, usa una duración estimada para choque
-      let sFin = s.horaFin ? new Date(`${s.fecha}T${s.horaFin}:00`) : new Date(sInicio.getTime() + 1.5 * 60 * 60 * 1000);
-      if (s.horaFin && sFin < sInicio) {
-        sFin.setDate(sFin.getDate() + 1);
-      }
-      return (nuevaFechaHora < sFin && nuevaFechaHoraFin > sInicio);
-    });
-
-    if (hayChoque) {
-      Swal.fire({
-        title: 'Conflicto de Horario',
-        text: 'Ya tienes una sesión programada en este horario. Por favor elige otra hora.',
-        icon: 'warning'
-      });
-      return;
-    }
-
     if (!enlaceReunion || enlaceReunion.trim() === '') {
       Swal.fire({
         title: 'Enlace Requerido',
@@ -117,12 +150,10 @@ const TutoriasProfesor = () => {
 
     // Obtenemos al usuario activo
     const userSession = JSON.parse(localStorage.getItem('userSession'));
-    const userName = userSession?.nombres || "Prof. Ejemplo (Tú)";
-    const duracionHoras = (duracionMs / (1000 * 60 * 60)).toFixed(1);
 
     const payload = {
       profesor_id: userSession?.id || 1,
-      curso_id: parseInt(cursoNuevaSesion), // ahora es ID
+      curso_id: parseInt(cursoNuevaSesion),
       tema: temaNuevaSesion,
       precio: parseInt(precioNuevaSesion),
       fecha_hora_inicio: nuevaFechaHora.toISOString(),
@@ -131,33 +162,16 @@ const TutoriasProfesor = () => {
       enlace_reunion: enlaceReunion || null
     };
 
-    fetch(`${import.meta.env.VITE_API_URL}/sesiones/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    .then(async (res) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/sesiones/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.detail || data.error || 'Error al crear la sesión en el backend');
       }
-
-      // Fallback temporal para la UI hasta que el Backend cree el GET /api/sessions
-      const nombreCursoReal = misCursos.find(c => c.id === payload.curso_id)?.nombre || "Curso ID " + payload.curso_id;
-      StorageService.saveSession({
-        id: data.sesion_id,
-        profesorId: payload.profesor_id,
-        profesorNombre: userName, 
-        curso: nombreCursoReal,
-        tema: payload.tema,
-        fecha: fechaNuevaSesion,
-        hora: horaNuevaSesion,
-        horaFin: horaNuevaSesionFin,
-        duracion: duracionHoras,
-        foto: "https://i.pravatar.cc/150?img=11",
-        precioHora: payload.precio,
-        enlace_reunion: payload.enlace_reunion
-      });
 
       Swal.fire('¡Éxito!', 'La sesión ha sido publicada y está disponible para los alumnos.', 'success');
       setFechaNuevaSesion('');
@@ -167,12 +181,10 @@ const TutoriasProfesor = () => {
       setPrecioNuevaSesion(10);
       setEnlaceReunion('');
       cargarSesiones();
-    })
-    .catch(err => {
+    } catch (err) {
       console.error(err);
-      Swal.fire('Error', err.message, 'error');
-    });
-    cargarSesiones();
+      Swal.fire('Aviso', err.message, 'warning');
+    }
   };
 
   const formatearFechaEspanol = (fechaString) => {
@@ -193,7 +205,7 @@ const TutoriasProfesor = () => {
 
 
 
-  const handleIniciarSesionVirtual = (sesion) => {
+  const handleIniciarSesionVirtual = async (sesion) => {
     const ahora = new Date();
     const fechaHoraInicio = new Date(`${sesion.fecha}T${sesion.hora}:00`);
     let fechaHoraFin = sesion.horaFin ? new Date(`${sesion.fecha}T${sesion.horaFin}:00`) : new Date(fechaHoraInicio.getTime() + 1.5 * 60 * 60 * 1000);
@@ -213,14 +225,29 @@ const TutoriasProfesor = () => {
       return;
     }
 
-    // Lista simulada de estudiantes
-    const numeroInscritos = sesion.inscritos || Math.floor(Math.random() * 5) + 1;
+    // Traer lista de inscritos real desde el backend
+    let listaInscritos = [];
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/sesiones/${sesion.id}/inscritos`);
+      if (res.ok) {
+        listaInscritos = await res.json();
+      }
+    } catch (e) {
+      console.error("Error al obtener inscritos:", e);
+    }
+
+    const numeroInscritos = listaInscritos.length;
     let htmlAlumnos = '<ul class="list-group text-start mt-3 mb-3" style="max-height: 150px; overflow-y: auto;">';
-    for (let i = 1; i <= numeroInscritos; i++) {
-      htmlAlumnos += `<li class="list-group-item d-flex align-items-center">
-        <span class="bg-success rounded-circle me-2" style="width: 10px; height: 10px; display: inline-block;"></span>
-        Estudiante ${i} (Conectado)
-      </li>`;
+    
+    if (numeroInscritos === 0) {
+      htmlAlumnos += `<li class="list-group-item text-muted text-center">No hay alumnos inscritos aún</li>`;
+    } else {
+      listaInscritos.forEach(est => {
+        htmlAlumnos += `<li class="list-group-item d-flex align-items-center">
+          <span class="bg-success rounded-circle me-2" style="width: 10px; height: 10px; display: inline-block;"></span>
+          ${est.nombre_estudiante} (Inscrito)
+        </li>`;
+      });
     }
     htmlAlumnos += '</ul>';
 
@@ -243,24 +270,36 @@ const TutoriasProfesor = () => {
       confirmButtonColor: '#3F51B5',
       cancelButtonColor: '#6c757d',
       allowOutsideClick: false
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
         // Validar si puede finalizar usando el tiempo exacto en el que hizo clic
         if (!esProfesorDemo && new Date() < fechaHoraFin) {
-          Swal.fire('No puedes finalizar aún', 'La clase aún no ha cumplido su horario establecido. Los alumnos siguen conectados.', 'error');
+          Swal.fire('No puedes finalizar aún', 'La clase aún no ha cumplido su horario establecido. Los alumnos siguen conectados.', 'warning');
           return;
         }
 
-        StorageService.updateSession(sesion.id, { estado: 'Finalizada' });
-        
-        Swal.fire({
-          title: 'Clase Finalizada',
-          text: 'La sesión ha sido marcada como completada y los alumnos ya pueden dejar su reseña.',
-          icon: 'success',
-          confirmButtonColor: '#28a745'
-        }).then(() => {
-          handleAbrirEvaluacion(sesion);
-        });
+        try {
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/sesiones/${sesion.id}/finalizar`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+          });
+          
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.detail || 'Error al finalizar la sesión en el servidor');
+          }
+
+          Swal.fire({
+            title: 'Clase Finalizada',
+            text: 'La sesión ha sido marcada como completada y los alumnos ya pueden dejar su reseña.',
+            icon: 'success',
+            confirmButtonColor: '#28a745'
+          }).then(() => {
+            handleAbrirEvaluacion(sesion);
+          });
+        } catch (err) {
+          Swal.fire('Aviso', err.message, 'warning');
+        }
       }
     });
   };

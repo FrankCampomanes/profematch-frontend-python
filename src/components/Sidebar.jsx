@@ -202,7 +202,7 @@ export default function Sidebar({ role }) {
       cancelButtonText: "Cancelar"
     }).then((result) => {
       if (result.isConfirmed) {
-        localStorage.removeItem("userSession");
+        localStorage.clear(); // Limpia TODO para evitar contaminación entre cuentas
         navigate("/login");
       }
     });

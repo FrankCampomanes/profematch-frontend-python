@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import CheckoutModal from "../../components/CheckoutModal";
-import ModalCancelacion from "../../components/ModalCancelacion";
-import { StorageService } from "../../core/database/StorageService";
 import { courseDurations } from "../../data/profesoresData";
 import Swal from 'sweetalert2';
 
@@ -13,13 +11,14 @@ export default function TutoriasEstudiante() {
   // Data
   const [misTutoriasAgendadas, setMisTutoriasAgendadas] = useState([]);
   const [sesionesDisponibles, setSesionesDisponibles] = useState([]);
+  const [cargando, setCargando] = useState(true);
 
   // Modals state
   const [sesionSeleccionada, setSesionSeleccionada] = useState(null);
-  const [tutoriaACancelar, setTutoriaACancelar] = useState(null);
 
   // Grouping by course
   const [cursoSeleccionado, setCursoSeleccionado] = useState(null);
+  const [profesorFiltroCursos, setProfesorFiltroCursos] = useState(null);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -32,30 +31,114 @@ export default function TutoriasEstudiante() {
     if (location.state?.cursoSeleccionado) {
       setTab("explorar");
       setCursoSeleccionado(location.state.cursoSeleccionado);
+      // Limpiar state
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    
+    if (location.state?.profesorCursos) {
+      setTab("explorar");
+      setProfesorFiltroCursos(location.state.profesorCursos);
+      // Limpiar state
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, navigate, location.pathname]);
 
-  const cargarDatos = () => {
-    const todasSesiones = StorageService.getSessions();
-    const misSesiones = StorageService.getTutoringSessions().map(reserva => {
-      // Sincronizar el estado de la reserva con el estado real de la sesión dictada por el profe
-      const sesionReal = todasSesiones.find(s => s.id === reserva.sesionId);
-      if (sesionReal && sesionReal.estado === "Finalizada" && reserva.estado !== "Cancelada") {
-        return { ...reserva, estado: "Completada" };
-      }
-      if (sesionReal && sesionReal.estado === "Cancelada") {
-        return { ...reserva, estado: "Cancelada" };
-      }
-      return reserva;
-    });
-    
-    misSesiones.sort((a, b) => new Date(a.fechaHora) - new Date(b.fechaHora));
-    setMisTutoriasAgendadas(misSesiones);
-    setSesionesDisponibles(todasSesiones);
+  // Convierte datetime del backend (UTC sin 'Z') a objeto Date en hora local
+  const parseBackendDate = (str) => {
+    if (!str) return new Date(0);
+    // Si ya trae 'Z' o '+', parsear tal cual; si no, añadir 'Z' (es UTC)
+    if (str.endsWith('Z') || str.includes('+')) return new Date(str);
+    return new Date(str + 'Z');
   };
 
-  const cursosUnicos = Object.keys(courseDurations);
+  const mapSesion = (s) => {
+    const start = parseBackendDate(s.fecha_hora_inicio);
+    const end = parseBackendDate(s.fecha_hora_fin);
+    const duracionHoras = ((end - start) / (1000 * 60 * 60)).toFixed(1);
+
+    const anio = start.getFullYear();
+    const mes = String(start.getMonth() + 1).padStart(2, '0');
+    const dia = String(start.getDate()).padStart(2, '0');
+    const fechaStr = `${anio}-${mes}-${dia}`;
+    const horaStr = start.toTimeString().split(' ')[0].substring(0, 5);
+    const horaFinStr = end.toTimeString().split(' ')[0].substring(0, 5);
+
+    return {
+      id: s.id,
+      profesorId: s.profesor_id,
+      profesorNombre: s.profesor_nombre,
+      curso: s.curso_nombre,
+      tema: s.tema,
+      fecha: fechaStr,
+      hora: horaStr,
+      horaFin: horaFinStr,
+      duracion: duracionHoras,
+      foto: "https://i.pravatar.cc/150?img=11",
+      precioHora: s.precio,
+      enlace_reunion: s.enlace_reunion,
+      inscritos: s.inscritos_actuales,
+      cuposMaximos: s.cupos_maximos,
+      estado: s.estado,
+      fecha_hora_inicio: s.fecha_hora_inicio,
+      fecha_hora_fin: s.fecha_hora_fin
+    };
+  };
+
+  const cargarDatos = async () => {
+    setCargando(true);
+    try {
+      const userSession = JSON.parse(localStorage.getItem('userSession'));
+      if (!userSession) return;
+
+      // 1. Cargar TODAS las sesiones disponibles (todos los profesores) desde el backend
+      const resSesiones = await fetch(`${import.meta.env.VITE_API_URL}/sesiones/disponibles`);
+      if (resSesiones.ok) {
+        const backendSesiones = await resSesiones.json();
+        const mapped = backendSesiones.map(mapSesion);
+        setSesionesDisponibles(mapped);
+      }
+
+      // 2. Cargar MIS inscripciones desde el backend (filtradas por usuario logueado)
+      const resInsc = await fetch(`${import.meta.env.VITE_API_URL}/sesiones/estudiante/${userSession.id}`);
+      if (resInsc.ok) {
+        const inscripciones = await resInsc.json();
+        const misClases = inscripciones.map(insc => {
+          const start = parseBackendDate(insc.fecha_hora_inicio);
+          const end = parseBackendDate(insc.fecha_hora_fin);
+          const duracionHoras = ((end - start) / (1000 * 60 * 60)).toFixed(1);
+
+          // Mapear estado: si sesión finalizada → Completada
+          let estadoMostrar = "Confirmada";
+          if (insc.estado_sesion === "Finalizada") estadoMostrar = "Completada";
+          else if (insc.estado_sesion === "Cancelada") estadoMostrar = "Cancelada";
+          else if (insc.estado_inscripcion === "Cancelado") estadoMostrar = "Cancelada";
+
+          return {
+            id: insc.inscripcion_id,
+            sesionId: insc.sesion_id,
+            profesorId: insc.profesor_id,
+            profesorNombre: insc.profesor_nombre,
+            curso: insc.curso_nombre,
+            tema: insc.tema,
+            foto: "https://i.pravatar.cc/150?img=11",
+            fechaHora: insc.fecha_hora_inicio + 'Z', // UTC para comparaciones correctas
+            duracionEstimada: parseFloat(duracionHoras),
+            totalPagado: insc.precio,
+            estado: estadoMostrar,
+            enlace_reunion: insc.enlace_reunion
+          };
+        });
+
+        misClases.sort((a, b) => new Date(a.fechaHora) - new Date(b.fechaHora));
+        setMisTutoriasAgendadas(misClases);
+      }
+
+    } catch (err) {
+      console.error("Error al cargar datos de tutorias para estudiante:", err);
+    } finally {
+      setCargando(false);
+    }
+  };
 
   const handleInscripcionExitosa = () => {
     setSesionSeleccionada(null);
@@ -69,13 +152,16 @@ export default function TutoriasEstudiante() {
     return hoy.toDateString() === fecha.toDateString();
   };
 
+  let cursosAMostrar = Object.keys(courseDurations);
+  if (profesorFiltroCursos && profesorFiltroCursos.length > 0) {
+    cursosAMostrar = cursosAMostrar.filter(c => profesorFiltroCursos.includes(c));
+  }
+
   const isHoraDeClase = (fechaISO, duracionHoras = 1.5) => {
     const ahora = new Date();
     const fechaInicio = new Date(fechaISO);
     const diezMinutosAntes = new Date(fechaInicio.getTime() - 10 * 60000);
     const horaFin = new Date(fechaInicio.getTime() + duracionHoras * 60 * 60 * 1000);
-    
-    // Puede entrar desde 10 mins antes hasta que acabe la clase
     return ahora >= diezMinutosAntes && ahora <= horaFin;
   };
 
@@ -118,13 +204,12 @@ export default function TutoriasEstudiante() {
     WebkitTextFillColor: "transparent"
   };
 
-  // Filtrado de sesiones válidas (Regla de los 10 minutos para explorar sesiones)
+  // Solo sesiones Programadas que aún no vencieron (10 min de gracia para inscribirse)
   const sesionesVigentes = sesionesDisponibles.filter(s => {
     if (s.estado !== 'Programada') return false;
-    const inicio = new Date(`${s.fecha}T${s.hora}:00`);
-    const limiteIngreso = new Date(inicio.getTime() + 10 * 60000); // 10 min de gracia máximo para inscribirse
-    const ahora = new Date();
-    return ahora <= limiteIngreso;
+    const inicio = parseBackendDate(s.fecha_hora_inicio);
+    const limiteIngreso = new Date(inicio.getTime() + 10 * 60000);
+    return new Date() <= limiteIngreso;
   });
 
   return (
@@ -155,6 +240,7 @@ export default function TutoriasEstudiante() {
               onClick={() => {
                 setTab("explorar");
                 setCursoSeleccionado(null);
+                setProfesorFiltroCursos(null);
               }}
             >
               Explorar Sesiones
@@ -162,7 +248,14 @@ export default function TutoriasEstudiante() {
           </li>
         </ul>
 
-        {tab === "mis-tutorias" && (
+        {cargando && (
+          <div className="text-center py-5">
+            <div className="spinner-border text-primary" role="status"></div>
+            <p className="text-muted mt-2">Cargando sesiones...</p>
+          </div>
+        )}
+
+        {!cargando && tab === "mis-tutorias" && (
           <section>
             {misTutoriasAgendadas.length === 0 ? (
               <div className="text-center py-5 bg-light rounded-4">
@@ -194,6 +287,7 @@ export default function TutoriasEstudiante() {
                         </div>
 
                         <h5 className="fw-bold text-dark mb-1">{tut.curso}</h5>
+                        <p className="text-muted small mb-1">Tema: {tut.tema}</p>
                         <div className="d-flex align-items-center mb-3">
                           <img src={tut.foto} alt={tut.profesorNombre} className="rounded-circle me-2" width="30" height="30" style={{ objectFit: 'cover' }} />
                           <small className="text-muted">{tut.profesorNombre}</small>
@@ -215,9 +309,9 @@ export default function TutoriasEstudiante() {
 
                         {tut.estado === "Confirmada" && (
                           <div className="d-grid mt-3">
-                            {isHoraDeClase(tut.fechaHora) ? (
-                              <button 
-                                className="btn rounded-pill fw-bold py-2 text-white border-0 shadow-sm hover-shadow animation-pulse"
+                            {isHoraDeClase(tut.fechaHora, tut.duracionEstimada) ? (
+                              <button
+                                className="btn rounded-pill fw-bold py-2 text-white border-0 shadow-sm"
                                 style={gradientStyle}
                                 onClick={() => {
                                   Swal.fire({
@@ -234,7 +328,7 @@ export default function TutoriasEstudiante() {
                                 <i className="bi bi-camera-video-fill me-2"></i> Entrar a Sala Virtual
                               </button>
                             ) : (
-                              <button 
+                              <button
                                 className="btn btn-outline-secondary btn-sm rounded-pill fw-bold"
                                 disabled
                               >
@@ -252,15 +346,23 @@ export default function TutoriasEstudiante() {
           </section>
         )}
 
-        {tab === "explorar" && (
+        {!cargando && tab === "explorar" && (
           <section>
             {!cursoSeleccionado ? (
               <>
-                <h5 className="fw-bold mb-4">¿En qué curso necesitas ayuda?</h5>
+                <div className="d-flex justify-content-between align-items-center mb-4">
+                  <h5 className="fw-bold mb-0">
+                    {profesorFiltroCursos ? "Cursos dictados por el profesor seleccionado" : "¿En qué curso necesitas ayuda?"}
+                  </h5>
+                  {profesorFiltroCursos && (
+                    <button className="btn btn-outline-secondary btn-sm rounded-pill fw-bold" onClick={() => setProfesorFiltroCursos(null)}>
+                      Ver todos los cursos
+                    </button>
+                  )}
+                </div>
                 <div className="row g-4">
-                  {cursosUnicos.map(curso => {
+                  {cursosAMostrar.map(curso => {
                     const duracion = courseDurations[curso] || 1.5;
-                    // Count only available sessions for this course
                     const numSesiones = sesionesVigentes.filter(s => s.curso === curso).length;
 
                     return (
@@ -320,8 +422,7 @@ export default function TutoriasEstudiante() {
                   {sesionesVigentes.filter(s => s.curso === cursoSeleccionado).map((sesion) => {
                     const estaLleno = sesion.inscritos >= sesion.cuposMaximos;
                     const quedanPocos = (sesion.cuposMaximos - sesion.inscritos) <= 5;
-                    
-                    // Comprobar si ya estoy inscrito (Confirmada o Completada, permitimos recompra si canceló)
+                    // Verificar si ya estoy inscrito en esta sesión (por sesionId)
                     const yaInscrito = misTutoriasAgendadas.some(mt => mt.sesionId === sesion.id && mt.estado !== "Cancelada");
 
                     return (
@@ -357,7 +458,7 @@ export default function TutoriasEstudiante() {
                               Sesión Llena
                             </button>
                           ) : (
-                            <button 
+                            <button
                               className="btn text-white w-100 rounded-pill fw-bold border-0 shadow-sm"
                               style={gradientStyle}
                               onClick={() => setSesionSeleccionada(sesion)}
@@ -369,7 +470,7 @@ export default function TutoriasEstudiante() {
                       </div>
                     );
                   })}
-                  
+
                   {sesionesVigentes.filter(s => s.curso === cursoSeleccionado).length === 0 && (
                     <div className="col-12 text-center py-5">
                       <div className="bg-light p-4 rounded-4 d-inline-block shadow-sm">
@@ -395,7 +496,6 @@ export default function TutoriasEstudiante() {
           onSuccess={handleInscripcionExitosa}
         />
       )}
-
 
     </div>
   );

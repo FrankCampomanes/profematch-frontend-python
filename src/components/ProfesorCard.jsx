@@ -101,6 +101,7 @@ export default function ProfesorCard({ profesor, showPrice = false, isTutoria = 
               <div className="d-flex align-items-center gap-3 mb-3 text-start">
                 <img
                   src={foto}
+                  onError={(e) => { e.target.onerror = null; e.target.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(nombre) + "&background=random"; }}
                   className="rounded-circle border border-2 border-light shadow-sm"
                   style={{ width: "60px", height: "60px", objectFit: "cover" }}
                   alt={nombre}
@@ -383,11 +384,15 @@ export default function ProfesorCard({ profesor, showPrice = false, isTutoria = 
                 <div className="mb-4 text-start">
                   <h6 className="fw-bold text-indigo border-bottom pb-2">Cursos que dicta</h6>
                   <div className="d-flex flex-column gap-2 mt-2">
-                    {cursos.map((c, idx) => (
+                    {cursos.map((c, idx) => {
+                      const nombreCurso = typeof c === 'object' ? c.nombre : c;
+                      const p_curso = typeof c === 'object' && c.precio ? c.precio : precioHora;
+                      const r_curso = typeof c === 'object' && c.rating ? c.rating : rating;
+                      return (
                       <div key={idx} className="border rounded-3 p-3 bg-white shadow-sm d-flex justify-content-between align-items-center">
                         <div>
-                          <strong className="d-block text-dark">{c.nombre || c}</strong>
-                          <small className="text-muted">S/. {precioHora}/h | ⭐ {rating} | 📊 {dificultad}/10</small>
+                          <strong className="d-block text-dark">{nombreCurso}</strong>
+                          <small className="text-muted">S/. {p_curso}/h | ⭐ {r_curso} | 📊 {dificultad}/10</small>
                         </div>
                         <button
                           className="btn btn-sm btn-outline-primary rounded-pill fw-bold"
@@ -401,16 +406,17 @@ export default function ProfesorCard({ profesor, showPrice = false, isTutoria = 
                           Solicitar
                         </button>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
               {/* Reseñas Destacadas */}
-              {resenasDestacadas && resenasDestacadas.length > 0 && (
-                <div className="mb-2 text-start">
-                  <h6 className="fw-bold text-indigo border-bottom pb-2">Reseñas Destacadas</h6>
-                  <div className="d-flex flex-column gap-3 mt-3">
+              <div className="mb-2 text-start">
+                <h6 className="fw-bold text-indigo border-bottom pb-2">Reseñas Destacadas</h6>
+                {resenasDestacadas && resenasDestacadas.length > 0 ? (
+                  <div className="d-flex flex-column gap-3 mt-3 pe-2" style={{ maxHeight: '260px', overflowY: 'auto' }}>
                     {resenasDestacadas.map((r, i) => (
                       <div key={i} className="bg-light p-3 rounded-4 shadow-sm border border-white position-relative">
                         <div className="d-flex align-items-center mb-2">
@@ -422,15 +428,17 @@ export default function ProfesorCard({ profesor, showPrice = false, isTutoria = 
                             <small className="text-muted d-block" style={{ fontSize: '0.7rem' }}>{r.curso || "General"} • {r.fecha && String(r.fecha).includes('T') ? new Date(r.fecha).toLocaleDateString() : r.fecha}</small>
                           </div>
                           <div className="ms-auto text-warning fw-bold" style={{ fontSize: '0.8rem' }}>
-                            <i className="bi bi-star-fill"></i> {r.puntuaciones?.Claridad || rating}
+                            <i className="bi bi-star-fill"></i> {r.estrellas_calculadas || rating}
                           </div>
                         </div>
                         <p className="text-muted mb-0 fst-italic" style={{ fontSize: '0.8rem' }}>"{r.comentario}"</p>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-muted small mt-2">Este profesor aún no tiene reseñas.</p>
+                )}
+              </div>
             </div>
 
             <div className="p-3 border-top d-flex gap-2 bg-white">
@@ -445,8 +453,11 @@ export default function ProfesorCard({ profesor, showPrice = false, isTutoria = 
                 style={{ background: "linear-gradient(135deg, #7B1FA2 0%, #403fa0ff 100%)" }}
                 onClick={() => {
                   setShowModal(false);
-                  if (onSolicitar) onSolicitar(profesor);
-                  else navigate("/tutorias-estudiante");
+                  if (onSolicitar) {
+                    onSolicitar(profesor);
+                  } else {
+                    navigate("/tutorias-estudiante", { state: { profesorCursos: cursos } });
+                  }
                 }}
               >
                 Solicitar Tutoría

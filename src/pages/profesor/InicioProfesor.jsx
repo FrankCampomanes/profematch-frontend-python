@@ -47,6 +47,12 @@ const InicioProfesor = () => {
 
   const [historialTransacciones, setHistorialTransacciones] = useState([]);
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
+  const [graficosData, setGraficosData] = useState({
+    barLabels: ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'],
+    barData: [0, 0, 0, 0],
+    lineLabels: ['Mes 1', 'Mes 2', 'Mes 3'],
+    lineData: [0, 0, 0]
+  });
 
   const META_CLASES = 10;
   const MONTO_BONO = 15;
@@ -66,7 +72,7 @@ const InicioProfesor = () => {
   useEffect(() => {
     // Comprobar si es un profesor nuevo
     const userSession = JSON.parse(localStorage.getItem('userSession'));
-    if (userSession && userSession.role === 'profesor') {
+    if (userSession && (userSession.role === 'profesor' || userSession.rol === 'profesor')) {
       if (userSession.perfil_completado === false || userSession.perfil_completado === 0) {
         setMostrarModalPerfil(true);
       }
@@ -114,6 +120,14 @@ const InicioProfesor = () => {
           departamento: "Tutoría General"
         });
 
+        // UPDATE LOCAL STORAGE SO THE MODAL DOES NOT APPEAR AGAIN
+        const updatedSession = { 
+          ...userSession, 
+          perfil_completado: true,
+          cursos: profileData.cursos
+        };
+        localStorage.setItem('userSession', JSON.stringify(updatedSession));
+
         Swal.fire({
           title: "Perfil Completado",
           text: "Tus datos ahora son visibles para los estudiantes.",
@@ -132,58 +146,55 @@ const InicioProfesor = () => {
   };
 
   useEffect(() => {
-    const TARIFA_POR_HORA = 50;
-    const COMISION_PORCENTAJE = 0.15; 
+    const fetchDashboardData = async () => {
+      try {
+        const userSession = JSON.parse(localStorage.getItem('userSession'));
+        if (!userSession || !userSession.token || (userSession.role !== 'profesor' && userSession.rol !== 'profesor')) {
+          return;
+        }
 
-    const userSession = JSON.parse(localStorage.getItem('userSession'));
-    const allSessions = StorageService.getSessions() || [];
-    const profSessions = allSessions.filter(s => s.profesorId === (userSession?.id || 1));
-
-    let netoAcumulado = 0;
-    let pendientes = 0;
-    let contadorCompletadas = 0;
-
-    const listaProcesada = profSessions.map(item => {
-      const inscritos = item.inscritos || 0;
-      const precio = item.precio || 0;
-      const pagoNeto = inscritos * precio;
-
-      if (item.estado === "Finalizada") {
-        netoAcumulado += pagoNeto;
-        contadorCompletadas += 1;
-      } else if (item.estado === "Programada") {
-        pendientes += pagoNeto;
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/professors/${userSession.id}/dashboard`, {
+          headers: {
+            "Authorization": `Bearer ${userSession.token}`
+          }
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          
+          setFinanzas({
+            ingresoNeto: data.finanzas.ingresoNeto,
+            ingresosPendientes: data.finanzas.ingresosPendientes,
+            bono: data.finanzas.bono
+          });
+          
+          setTotalClasesDictadas(data.totalClasesDictadas);
+          setIsMetaAlcanzada(data.totalClasesDictadas >= META_CLASES);
+          
+          setHistorialTransacciones(data.historialTransacciones);
+          
+          // Guardar graficos dinámicos
+          if(data.graficos) {
+            setGraficosData(data.graficos);
+          }
+        }
+      } catch (err) {
+        console.error("Error obteniendo dashboard del profesor:", err);
       }
-
-      return {
-        ...item,
-        pagoNeto
-      };
-    });
-
-    setTotalClasesDictadas(contadorCompletadas);
-    setIsMetaAlcanzada(contadorCompletadas >= META_CLASES);
-
-    const bonosGanados = Math.floor(contadorCompletadas / META_CLASES) * MONTO_BONO;
-
-    setFinanzas({
-      ingresoNeto: netoAcumulado,
-      ingresosPendientes: pendientes,
-      bono: bonosGanados
-    });
-
-    setHistorialTransacciones(listaProcesada.filter(s => s.estado === "Finalizada").slice().reverse());
+    };
+    
+    fetchDashboardData();
   }, []);
 
   const porcentajeProgreso = Math.min(((totalClasesDictadas % META_CLASES) / META_CLASES) * 100, 100);
-  const ingresoNetoFinal = finanzas.ingresoNeto + finanzas.bono;
+  const ingresoNetoFinal = (finanzas.ingresoNeto || 0) + (finanzas.bono || 0);
 
   const datosBarras = {
-    labels: ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'],
+    labels: graficosData.barLabels,
     datasets: [
       {
         label: 'Ingresos Netos (S/.)',
-        data: [150, 220, 180, ingresoNetoFinal > 0 ? ingresoNetoFinal : 250],
+        data: graficosData.barData,
         backgroundColor: '#3F51B5',
         borderRadius: 6,
       },
@@ -191,11 +202,11 @@ const InicioProfesor = () => {
   };
 
   const datosLineas = {
-    labels: ['Abril', 'Mayo', 'Junio (Actual)'],
+    labels: graficosData.lineLabels,
     datasets: [
       {
         label: 'Evolución de Ganancias (S/.)',
-        data: [280, 340, ingresoNetoFinal],
+        data: graficosData.lineData,
         borderColor: '#E91E63',
         backgroundColor: 'rgba(233, 30, 99, 0.1)',
         tension: 0.3,
@@ -410,13 +421,13 @@ const InicioProfesor = () => {
                   {historialTransacciones.length > 0 ? historialTransacciones.map((t) => (
                     <tr key={t.id}>
                       <td className="py-2 text-muted fw-medium">{t.fecha}</td>
-                      <td className="py-2 text-dark fw-bold">{t.tema}</td>
-                      <td className="py-2 text-muted">{t.curso}</td>
+                      <td className="py-2 text-dark fw-bold text-truncate" style={{ maxWidth: '180px' }} title={t.tema}>{t.tema}</td>
+                      <td className="py-2 text-muted text-truncate" style={{ maxWidth: '120px' }} title={t.curso}>{t.curso}</td>
                       <td className="py-2 text-dark">{t.inscritos || 0}</td>
                       <td className="py-2 text-muted">S/. {t.precio?.toFixed(2)}</td>
                       <td className="py-2 text-success fw-bold">S/. {t.pagoNeto?.toFixed(2)}</td>
                       <td className="py-2 text-center">
-                        <span className="badge px-2 py-1 rounded bg-success-subtle text-success">
+                        <span className={`badge px-2 py-1 rounded ${t.estado === 'Finalizada' ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'}`}>
                           {t.estado}
                         </span>
                       </td>

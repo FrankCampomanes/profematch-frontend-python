@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { StorageService } from "../core/database/StorageService";
 import { courseDurations } from "../data/profesoresData";
 
 export default function CheckoutModal({ sesion, onClose, onSuccess }) {
@@ -63,43 +62,8 @@ export default function CheckoutModal({ sesion, onClose, onSuccess }) {
       return false;
     }
 
-    // Ya no se valida fecha/hora aquí porque la sesión ya tiene un horario fijo válido.
-    // Solo validamos que la sesión aún no se haya llenado
     if (sesion.inscritos >= sesion.cuposMaximos) {
       setErrorValidacion("Lo sentimos, esta sesión ya ha alcanzado su límite de cupos.");
-      return false;
-    }
-
-    // Validación de conflicto de horarios para el alumno
-    const todasSesiones = StorageService.getSessions();
-    const misSesionesRaw = StorageService.getTutoringSessions();
-    
-    // Sincronizar el estado de la reserva con el estado real de la sesión (igual que en TutoriasEstudiante)
-    const misSesiones = misSesionesRaw.map(reserva => {
-      const sesionReal = todasSesiones.find(s => s.id === reserva.sesionId);
-      if (sesionReal && sesionReal.estado === "Finalizada" && reserva.estado !== "Cancelada") {
-        return { ...reserva, estado: "Completada" };
-      }
-      return reserva;
-    });
-
-    const fechaHoraSesion = new Date(`${sesion.fecha}T${sesion.hora}:00`);
-    const tiempoInicioNuevo = fechaHoraSesion.getTime();
-    const tiempoFinNuevo = tiempoInicioNuevo + duracion * 60 * 60 * 1000;
-
-    const hayConflicto = misSesiones.some(miSesion => {
-      // Ignorar sesiones que no estén activamente programadas/confirmadas
-      if (miSesion.estado !== "Confirmada") return false;
-      
-      const tiempoInicioExistente = new Date(miSesion.fechaHora).getTime();
-      const duracionExistente = miSesion.duracionEstimada || 1.5;
-      const tiempoFinExistente = tiempoInicioExistente + duracionExistente * 60 * 60 * 1000;
-
-      return (tiempoInicioNuevo < tiempoFinExistente) && (tiempoFinNuevo > tiempoInicioExistente);
-    });
-
-    if (hayConflicto) {
-      setErrorValidacion("Ya tienes una tutoría agendada que se cruza con este horario. Por favor elige otra sesión.");
       return false;
     }
 
@@ -107,36 +71,35 @@ export default function CheckoutModal({ sesion, onClose, onSuccess }) {
     return true;
   };
 
-  const handleConfirmar = (e) => {
+  const handleConfirmar = async (e) => {
     e.preventDefault();
     if (!validarFormulario()) return;
 
-    const fechaHoraStr = `${sesion.fecha}T${sesion.hora}:00`;
-    const fechaHora = new Date(fechaHoraStr).toISOString();
+    try {
+      // Leer el ID del estudiante logueado
+      const userSession = JSON.parse(localStorage.getItem('userSession'));
+      if (!userSession || !userSession.id) {
+        setErrorValidacion('No se encontró sesión activa. Por favor inicia sesión de nuevo.');
+        return;
+      }
 
-    const nuevaInscripcion = {
-      sesionId: sesion.id,
-      profesorId: sesion.profesorId,
-      profesorNombre: sesion.profesorNombre,
-      curso: sesion.curso,
-      foto: sesion.foto,
-      fechaHora,
-      fechaOriginal: sesion.fecha,
-      horaOriginal: sesion.hora,
-      totalPagado: total,
-      estado: "Confirmada",
-      duracionEstimada: duracion,
-      enlace_reunion: sesion.enlace_reunion
-    };
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/sesiones/${sesion.id}/inscribir`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estudiante_id: userSession.id })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || data.error || 'Error en la inscripción');
+      }
 
-    // Guardar inscripción del alumno
-    StorageService.saveTutoringSession(nuevaInscripcion);
-    
-    // Actualizar cupos de la sesión en el profesor
-    StorageService.updateSession(sesion.id, { inscritos: (sesion.inscritos || 0) + 1 });
+      setTransaccionId(`TXN-${Math.floor(Math.random() * 1000000)}`);
+      setPaso(2);
 
-    setTransaccionId(`TXN-${Math.floor(Math.random() * 1000000)}`);
-    setPaso(2);
+    } catch (err) {
+      setErrorValidacion(err.message);
+    }
   };
 
   const handleCerrar = () => {
@@ -224,8 +187,8 @@ export default function CheckoutModal({ sesion, onClose, onSuccess }) {
                   </div>
 
                   {errorValidacion && (
-                    <div className="alert alert-danger p-2 small mb-3">
-                      <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                    <div className="alert alert-warning p-2 small mb-3">
+                      <i className="bi bi-info-circle-fill me-2"></i>
                       {errorValidacion}
                     </div>
                   )}

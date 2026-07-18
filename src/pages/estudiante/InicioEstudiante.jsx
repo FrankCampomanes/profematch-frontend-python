@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
-import { StorageService } from "../../core/database/StorageService";
 
 export default function InicioEstudiante() {
   const [userName, setUserName] = useState("Estudiante");
@@ -19,14 +18,48 @@ export default function InicioEstudiante() {
   useEffect(() => {
     const session = JSON.parse(localStorage.getItem("userSession"));
     if (session && session.email) {
-      const namePart = session.email.split('@')[0];
+      const namePart = session.nombres || session.email.split('@')[0];
       setUserName(namePart.charAt(0).toUpperCase() + namePart.slice(1));
     }
-    procesarDatos();
+    if (session && session.id) {
+      cargarDatosDesdeBackend(session.id);
+    }
   }, []);
 
-  const procesarDatos = () => {
-    const sesiones = StorageService.getTutoringSessions();
+  const cargarDatosDesdeBackend = async (estudianteId) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/sesiones/estudiante/${estudianteId}`);
+      if (!res.ok) return;
+      const inscripciones = await res.json();
+
+      // Convertir a formato interno
+      const sesiones = inscripciones.map(insc => {
+        const start = new Date(insc.fecha_hora_inicio + 'Z');
+        const end = new Date(insc.fecha_hora_fin + 'Z');
+        const durHoras = ((end - start) / (1000 * 60 * 60));
+        let estado = "Confirmada";
+        if (insc.estado_sesion === "Finalizada") estado = "Completada";
+        else if (insc.estado_inscripcion === "Cancelado" || insc.estado_sesion === "Cancelada") estado = "Cancelada";
+        return {
+          id: insc.inscripcion_id,
+          sesionId: insc.sesion_id,
+          curso: insc.curso_nombre,
+          profesorId: insc.profesor_id,
+          profesorNombre: insc.profesor_nombre,
+          foto: "https://i.pravatar.cc/150?img=11",
+          fechaHora: insc.fecha_hora_inicio + 'Z',
+          duracionEstimada: durHoras,
+          estado
+        };
+      });
+
+      procesarDatos(sesiones);
+    } catch (err) {
+      console.error("Error cargando datos del estudiante:", err);
+    }
+  };
+
+  const procesarDatos = (sesiones) => {
     const completadas = sesiones.filter(s => s.estado === "Completada");
     const confirmadas = sesiones.filter(s => s.estado === "Confirmada");
 
