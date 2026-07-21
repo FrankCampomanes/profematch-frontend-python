@@ -185,7 +185,7 @@ export default function Sidebar({ role }) {
     profesor: {
       color: "linear-gradient(180deg, #3F51B5 0%, #3F51B5 75%, #5E35B1 100%)",
       items: [
-        { name: "Mi Perfil", icon: "bi-person-badge", path: "/inicio-profesor" },
+        { name: "Inicio", icon: "bi-person-badge", path: "/inicio-profesor" },
         { name: "Evaluaciones", icon: "bi-star", path: "/evaluaciones-profesor" },
         { name: "Tutorias", icon: "bi-book", path: "/tutorias-profesor" },
       ]

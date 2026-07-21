@@ -133,7 +133,11 @@ const EvaluacionesProfesor = () => {
 
   // Lógica de filtrado combinada (Estrellas + Palabra seleccionada de la Nube)
   const resenasFiltradas = resenas.filter(r => {
-    const cumpleEstrellas = filtro === 0 || r.estrellas === filtro;
+    let cumpleEstrellas = true;
+    if (filtro !== 0) {
+      // 4 estrellas incluye desde 3.5 hasta 4.4
+      cumpleEstrellas = r.estrellas >= (filtro - 0.5) && r.estrellas < (filtro + 0.5);
+    }
     const cumplePalabra = !palabraFiltro || r.comentario.toLowerCase().includes(palabraFiltro.toLowerCase());
     return cumpleEstrellas && cumplePalabra;
   });
@@ -187,6 +191,8 @@ const EvaluacionesProfesor = () => {
               <option value="5">5 Estrellas</option>
               <option value="4">4 Estrellas</option>
               <option value="3">3 Estrellas</option>
+              <option value="2">2 Estrellas</option>
+              <option value="1">1 Estrella</option>
             </select>
             <div className="bg-white p-2 rounded shadow-sm border px-3 d-flex align-items-center gap-1">
               <span className="fw-bold text-primary">{avgRating} / 5</span>

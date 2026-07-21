@@ -115,7 +115,13 @@ export default function InicioEstudiante() {
     // Objetivo
     if (distribucionArray.length > 0) {
       const ultimaMateria = distribucionArray[distribucionArray.length - 1].curso;
-      setSugerenciaObjetivo(`Refuerza tus conocimientos en ${ultimaMateria}. ¡Agenda una sesión pronto!`);
+      const frases = [
+        `Refuerza tus conocimientos en ${ultimaMateria}. ¡Agenda una sesión pronto!`,
+        `¿Listo para dominar ${ultimaMateria}? ¡Tus tutores te esperan!`,
+        `Sigue brillando en ${ultimaMateria}. ¡Reserva tu próxima tutoría!`,
+        `¡Excelente ritmo! Un repaso de ${ultimaMateria} te vendría genial hoy.`
+      ];
+      setSugerenciaObjetivo(frases[Math.floor(Math.random() * frases.length)]);
     } else {
       setSugerenciaObjetivo("¡Empieza explorando materias nuevas en el buscador!");
     }

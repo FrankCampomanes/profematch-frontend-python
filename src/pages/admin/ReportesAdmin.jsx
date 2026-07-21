@@ -43,7 +43,7 @@ export default function ReportesAdmin() {
   });
 
   React.useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/admin/estadisticas/global_kpis')
+    fetch(`${import.meta.env.VITE_API_URL}/admin/estadisticas/global_kpis`)
       .then(res => res.json())
       .then(data => setGlobalKpis(data))
       .catch(err => console.error("Error cargando KPIs globales:", err));
@@ -52,7 +52,7 @@ export default function ReportesAdmin() {
   const [reporteProfesores, setReporteProfesores] = useState([]);
 
   React.useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/admin/estadisticas/desempeno_profesores')
+    fetch(`${import.meta.env.VITE_API_URL}/admin/estadisticas/desempeno_profesores`)
       .then(res => res.json())
       .then(data => setReporteProfesores(data))
       .catch(err => console.error("Error cargando desempeño de profesores:", err));
